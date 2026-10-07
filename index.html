@@ -114,6 +114,7 @@
       const particleSystemsRef = useRef([]);
       const breakerClosedRef = useRef(true);
       breakerClosedRef.current = breakerClosed;
+      const plantRoofApiRef = useRef({ setOpen: () => {} });
 
       // Dados dos Componentes para inspeção técnica
       const componentData = {
@@ -754,7 +755,7 @@
           helmet.castShadow = true;
           worker.add(helmet);
 
-          worker.userData = { leftLeg, rightLeg, leftArm, rightArm };
+          worker.userData = { leftLeg, rightLeg, leftArm, rightArm, head };
           return worker;
         };
 
@@ -1115,6 +1116,9 @@
 
         const plantFans = [];
         const plantSteam = [];
+        const plantSeated = [];
+        const plantOfficeWalker = { group: null, path: null };
+        const plantRoof = { open: false, amount: 0, walls: null, roof: null, hit: null };
 
         const buildPowerPlant = () => {
           // Texturas procedurais: faixa de perigo, persiana e janelas em grade
@@ -1285,16 +1289,42 @@
           // 4. Prédio laranja frontal, baixo, com chaminés listradas
           const frontBuildingGroup = new THREE.Group();
 
-          const frontMesh = new THREE.Mesh(new THREE.BoxGeometry(5.8, 2.6, 4.2), orangeMat);
-          frontMesh.position.set(-2.6, 1.3, 1.8);
-          frontMesh.castShadow = true;
-          frontMesh.receiveShadow = true;
-          frontBuildingGroup.add(frontMesh);
+          // Piso e paredes do escritório (as paredes baixam quando o telhado abre)
+          const officeFloor = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.1, 4.2), new THREE.MeshStandardMaterial({ color: '#c9c2b6', roughness: 0.8 }));
+          officeFloor.position.set(-2.6, 0.05, 1.8);
+          officeFloor.receiveShadow = true;
+          frontBuildingGroup.add(officeFloor);
 
+          const officeWalls = new THREE.Group();
+          officeWalls.position.y = 0.1;
+          const addWall = (sx, sz, px, pz) => {
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(sx, 2.5, sz), orangeMat);
+            wall.position.set(px, 1.25, pz);
+            wall.castShadow = true;
+            wall.receiveShadow = true;
+            officeWalls.add(wall);
+          };
+          addWall(5.8, 0.2, -2.6, -0.2);
+          addWall(5.8, 0.2, -2.6, 3.8);
+          addWall(0.2, 3.8, -5.4, 1.8);
+          addWall(0.2, 3.8, 0.2, 1.8);
+
+          const officeWindowMat = new THREE.MeshStandardMaterial({ color: '#7f98aa', roughness: 0.3 });
+          [-4.2, -1.0].forEach(wx => {
+            [3.92, -0.32].forEach(wz => {
+              const win = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.04), officeWindowMat);
+              win.position.set(wx, 1.4, wz);
+              officeWalls.add(win);
+            });
+          });
+
+          // Telhado com chaminés e ventoinhas: some junto quando o escritório abre
+          const frontRoofGroup = new THREE.Group();
           const roofPlate = new THREE.Mesh(new THREE.BoxGeometry(5.82, 0.2, 4.22), roofRedMat);
           roofPlate.position.set(-2.6, 2.7, 1.8);
           roofPlate.castShadow = true;
-          frontBuildingGroup.add(roofPlate);
+          frontRoofGroup.add(roofPlate);
+          frontBuildingGroup.add(officeWalls, frontRoofGroup);
 
           const createFrontChimney = (x, z) => {
             const cGroup = new THREE.Group();
@@ -1312,11 +1342,11 @@
             return cGroup;
           };
 
-          frontBuildingGroup.add(createFrontChimney(-4.6, 0.8));
-          frontBuildingGroup.add(createFrontChimney(-3.6, 0.2));
+          frontRoofGroup.add(createFrontChimney(-4.6, 0.8));
+          frontRoofGroup.add(createFrontChimney(-3.6, 0.2));
 
           [[-1.8, 1.0], [-1.8, 2.4], [-0.4, 1.8]].forEach(([fx, fz]) => {
-            frontBuildingGroup.add(createRoofFan(fx, fz, 0.8, 2.8));
+            frontRoofGroup.add(createRoofFan(fx, fz, 0.8, 2.8));
           });
 
           const pipeCurve = new THREE.CatmullRomCurve3([
@@ -1329,6 +1359,70 @@
           ductMesh.castShadow = true;
           frontBuildingGroup.add(ductMesh);
           plantWorld.add(frontBuildingGroup);
+
+          // Interior do escritório: 3 mesas com PC, 3 pessoas sentadas e 1 pessoa andando
+          const officeFurniture = new THREE.Group();
+          officeFurniture.position.y = 0.1;
+          frontBuildingGroup.add(officeFurniture);
+
+          const deskMat = new THREE.MeshStandardMaterial({ color: '#a8896a', roughness: 0.7 });
+          const pcDarkMat = new THREE.MeshStandardMaterial({ color: '#3a4048', roughness: 0.5 });
+          const screenMat = new THREE.MeshStandardMaterial({ color: '#8fb4c8', emissive: '#6ea8c0', emissiveIntensity: 0.6, roughness: 0.3 });
+          const chairMat = new THREE.MeshStandardMaterial({ color: '#4a5360', roughness: 0.6 });
+
+          const addBox = (size, x, y, z, mat) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), mat);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            officeFurniture.add(mesh);
+          };
+
+          const DESK_XS = [-4.4, -2.6, -0.8];
+          const DESK_Z = 0.65;
+          const CHAIR_Z = 1.35;
+          const SEATED_COLORS = ['#8aa4c0', '#c0a98a', '#9ab59a'];
+
+          DESK_XS.forEach((dx, index) => {
+            // Mesa
+            addBox([1.4, 0.06, 0.7], dx, 0.75, DESK_Z, deskMat);
+            addBox([0.05, 0.72, 0.6], dx - 0.65, 0.36, DESK_Z, deskMat);
+            addBox([0.05, 0.72, 0.6], dx + 0.65, 0.36, DESK_Z, deskMat);
+            // PC: monitor com a tela voltada para a cadeira, teclado e torre
+            addBox([0.5, 0.32, 0.03], dx, 1.02, DESK_Z - 0.2, screenMat);
+            addBox([0.05, 0.14, 0.05], dx, 0.85, DESK_Z - 0.2, pcDarkMat);
+            addBox([0.36, 0.02, 0.12], dx, 0.79, DESK_Z + 0.12, pcDarkMat);
+            addBox([0.2, 0.42, 0.4], dx + 0.5, 0.21, DESK_Z, pcDarkMat);
+            // Cadeira
+            addBox([0.42, 0.06, 0.42], dx, 0.45, CHAIR_Z, chairMat);
+            addBox([0.42, 0.5, 0.05], dx, 0.72, CHAIR_Z + 0.2, chairMat);
+            const chairStem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), chairMat);
+            chairStem.position.set(dx, 0.21, CHAIR_Z);
+            officeFurniture.add(chairStem);
+
+            // Pessoa sentada, virada para a mesa, com as pernas à frente e os braços no teclado
+            const seated = createWorker(SEATED_COLORS[index]);
+            seated.position.set(dx, -0.23, CHAIR_Z);
+            seated.rotation.y = Math.PI;
+            seated.userData.leftLeg.rotation.x = -1.45;
+            seated.userData.rightLeg.rotation.x = -1.45;
+            seated.userData.leftArm.rotation.x = -1.0;
+            seated.userData.rightArm.rotation.x = -1.0;
+            frontBuildingGroup.add(seated);
+            plantSeated.push({ worker: seated, phase: index * 2.1 });
+          });
+
+          // Pessoa andando pelo corredor atrás das cadeiras
+          const officeWalker = createWorker('#9aa7b8');
+          officeWalker.position.set(-4.9, 0.1, 2.9);
+          frontBuildingGroup.add(officeWalker);
+          plantOfficeWalker.group = officeWalker;
+          plantOfficeWalker.path = makePath([[-4.9, 2.9], [-0.3, 2.9]], 'pingpong');
+
+          plantRoof.walls = officeWalls;
+          plantRoof.roof = frontRoofGroup;
+          plantRoof.hit = frontBuildingGroup;
+          plantRoofApiRef.current = { setOpen: (open) => { plantRoof.open = open; } };
 
           // 6. Tambores de óleo
           const createDrum = (x, z, color) => {
@@ -1403,6 +1497,29 @@
 
         window.addEventListener('click', handleClick);
 
+        // Clique no escritório da usina abre/fecha o telhado (ignora cliques depois de arrastar a câmera)
+        const plantRaycaster = new THREE.Raycaster();
+        const plantMouse = new THREE.Vector2();
+        let pressX = 0;
+        let pressY = 0;
+        const handlePressStart = (event) => {
+          pressX = event.clientX;
+          pressY = event.clientY;
+        };
+        const handleOfficeClick = (event) => {
+          if (event.target !== renderer.domElement) return;
+          if (Math.hypot(event.clientX - pressX, event.clientY - pressY) > 5) return;
+          plantMouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          plantMouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+          plantRaycaster.setFromCamera(plantMouse, camera);
+          const hit = plantRaycaster.intersectObjects(scene.children, true)[0];
+          let node = hit ? hit.object : null;
+          while (node && node !== plantRoof.hit) node = node.parent;
+          if (node) plantRoof.open = !plantRoof.open;
+        };
+        window.addEventListener('pointerdown', handlePressStart);
+        window.addEventListener('click', handleOfficeClick);
+
         // Redimensionamento de tela
         const handleResize = () => {
           camera.aspect = window.innerWidth / window.innerHeight;
@@ -1436,6 +1553,31 @@
             }
             p.geometry.attributes.position.needsUpdate = true;
           });
+
+          // Escritório da usina: pessoas sentadas digitando, uma pessoa andando e o telhado abrindo
+          plantSeated.forEach(s => {
+            const t = time + s.phase;
+            const parts = s.worker.userData;
+            parts.leftArm.rotation.x = -1.0 + Math.sin(t * 9) * 0.08;
+            parts.rightArm.rotation.x = -1.0 + Math.sin(t * 9 + 1.3) * 0.08;
+            parts.head.rotation.x = Math.sin(t * 0.7) * 0.08;
+          });
+          if (plantOfficeWalker.group) {
+            const travelled = time * 0.8;
+            const s = samplePath(plantOfficeWalker.path, travelled);
+            plantOfficeWalker.group.position.set(s.x, 0.1, s.z);
+            plantOfficeWalker.group.rotation.y = s.heading;
+
+            const swing = Math.sin(travelled * 4.5) * 0.7;
+            const parts = plantOfficeWalker.group.userData;
+            parts.leftLeg.rotation.x = swing;
+            parts.rightLeg.rotation.x = -swing;
+            parts.leftArm.rotation.x = -swing * 0.8;
+            parts.rightArm.rotation.x = swing * 0.8;
+          }
+          plantRoof.amount += ((plantRoof.open ? 1 : 0) - plantRoof.amount) * 0.12;
+          if (plantRoof.walls) plantRoof.walls.scale.y = 1 - 0.7 * plantRoof.amount;
+          if (plantRoof.roof) plantRoof.roof.visible = !plantRoof.open;
 
           // Usina: ventoinhas girando e fumaça nas chaminés
           plantFans.forEach(fan => {
@@ -1502,6 +1644,8 @@
         return () => {
           window.removeEventListener('resize', handleResize);
           window.removeEventListener('click', handleClick);
+          window.removeEventListener('pointerdown', handlePressStart);
+          window.removeEventListener('click', handleOfficeClick);
           cancelAnimationFrame(animationFrameId);
           if (container.contains(renderer.domElement)) {
             container.removeChild(renderer.domElement);
@@ -1561,6 +1705,11 @@
           case 'plant':
             controls.object.position.set(40, 22, 28);
             controls.target.set(16.4, 3, 0);
+            break;
+          case 'interior':
+            plantRoofApiRef.current.setOpen(true);
+            controls.object.position.set(25, 12, -12.8);
+            controls.target.set(19, 0.8, -1.8);
             break;
           case 'city':
             controls.object.position.set(80, 32, 14);
@@ -1666,6 +1815,7 @@
                 <button onClick={() => setCameraPreset('overview')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Visão Geral</button>
                 <button onClick={() => setCameraPreset('city')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Cidade</button>
                 <button onClick={() => setCameraPreset('plant')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Usina</button>
+                <button onClick={() => setCameraPreset('interior')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Interior</button>
                 <button onClick={() => setCameraPreset('iso')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Isométrica</button>
                 <button onClick={() => setCameraPreset('top')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Planta Baixa</button>
                 <button onClick={() => setCameraPreset('trafo')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Trafo 01</button>

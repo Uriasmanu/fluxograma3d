@@ -351,7 +351,8 @@ Esta seção descreve a cena que abre na página principal. Ela parte do código
 | Interface, modos de render (padrão, raio-X, termografia, noturno), carga do transformador, áudio de 60 Hz, alarmes | Código do usuário |
 | Cidade, torres de transmissão e cabos, em torno de postes e casas | Código do usuário, enviado depois (somente a parte 3D; a subestação em caixa dele não foi usada) |
 | Usina elétrica (prédios, chaminés, ventoinhas, tambores, fumaça) | Código do usuário, enviado depois (somente a parte 3D; o pequeno pátio de transformadores dela foi removido a pedido) |
-| 2 pessoas andando | Acréscimo |
+| 2 pessoas andando entre a subestação e a usina | Acréscimo |
+| Interior do escritório da usina (3 mesas com PC, 3 pessoas sentadas, 1 andando) | Acréscimo |
 | Portão na cerca leste | Acréscimo |
 | Cores mais apagadas na cidade e na usina | Ajuste pedido |
 
@@ -393,10 +394,20 @@ Duas pessoas, com capacete e colete (laranja e amarelo), andando continuamente a
 
 As rotas são escritas à mão. Não há desvio de obstáculos nem detecção de colisão, e as duas pessoas dividem o corredor do portão e se atravessam ali. A passada é sincronizada com a distância percorrida.
 
+### 12.6.1 Interior do escritório (prédio laranja da usina)
+
+O prédio laranja deixou de ser uma caixa maciça: tem piso, quatro paredes e um telhado separado (com as 2 chaminés e as 3 ventoinhas). Os demais prédios da usina continuam maciços.
+
+- **Abrir e fechar:** clicar no prédio alterna o telhado (o clique é ignorado se o mouse foi arrastado mais de 5 px, e só vale sobre a cena, não sobre os painéis). O botão **Interior** abre o telhado e leva a câmera para dentro. Com o telhado aberto, as paredes baixam a 30% da altura, com animação suave; o telhado some junto com as chaminés e as ventoinhas.
+- **Mobília:** 3 mesas em fileira, cada uma com um **PC** (monitor com tela emissiva voltada para a cadeira, teclado e torre sob a mesa) e uma cadeira.
+- **Pessoas:** **3 sentadas**, uma em cada mesa, virando para o monitor, com as pernas à frente e os braços no teclado (movimento leve de digitação e de cabeça), e **1 pessoa andando** de um lado a outro do corredor atrás das cadeiras (0,8 unidade por segundo).
+- **Cores:** mobília e roupas em tons apagados, como o resto da usina.
+- O interior vem fechado por padrão, para não mudar a vista geral.
+
 ### 12.7 Câmera, luz e sombras
 
 - Câmera em perspectiva (FOV 40) com `OrbitControls`, distância entre 5 e 220 e sem passar do chão.
-- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
+- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
 - Sol com sombras em um quadro de ±80 e mapa de 4096, para a cena inteira ter sombra. Isso deixa a sombra da subestação menos nítida que no código original.
 
 ### 12.8 Paleta
