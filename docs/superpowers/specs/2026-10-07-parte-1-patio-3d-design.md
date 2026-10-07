@@ -348,7 +348,7 @@ Esta seção descreve a cena que abre na página principal. Ela parte do código
 | Elemento | Origem |
 |---|---|
 | Subestação (transformador de 3 buchas, pórtico de treliça, 2 disjuntores, armários, para-raios, cabos, cerca amarela, placa de concreto, grama) | Código do usuário. As cores não mudam |
-| Interface, modos de render (padrão, raio-X, termografia, noturno), carga do transformador, áudio de 60 Hz, alarmes | Código do usuário |
+| Interface e modos de render (só padrão e Fim de Tarde; raio-X, termografia e noturno saíram a pedido). Por pedido, saíram o título, o rodapé de métricas, o áudio de 60 Hz e o controle de carga; a carga ficou fixa em 78% e só o botão do disjuntor continua | Código do usuário, com cortes |
 | Cidade, torres de transmissão e cabos, em torno de postes e casas | Código do usuário, enviado depois (somente a parte 3D; a subestação em caixa dele não foi usada) |
 | Usina elétrica (prédios, chaminés, ventoinhas, tambores, fumaça) | Código do usuário, enviado depois (somente a parte 3D; o pequeno pátio de transformadores dela foi removido a pedido) |
 | 2 pessoas andando entre a subestação e a usina | Acréscimo |
@@ -358,6 +358,7 @@ Esta seção descreve a cena que abre na página principal. Ela parte do código
 | Comunicação E3 e Sync, filas, bancos e painel do Sigma ECM | Acréscimo, conforme [dominio-treetech.md](../../dominio-treetech.md) |
 | Tour guiado de oito passos | Acréscimo (ver 12.6.8) |
 | Postes de luz na cidade e na estrada | Pedido do usuário |
+| Salas de desenvolvimento de protótipos na fábrica, cidade com carros e moradores, modo Fim de Tarde | Pedido do usuário (ver 12.6.5, 12.6.9 e 12.7) |
 | Portões nas cercas leste e sul | Acréscimo |
 | Cores mais apagadas na cidade e na usina | Ajuste pedido |
 
@@ -469,6 +470,7 @@ Um galpão da Treetech ao sul da estrada, em frente à Treetech: centro em (54; 
 
 - **Prédio:** 14 × 8, com paredes claras e faixa verde na base, telhado de duas águas, portão de enrolar na frente (voltada para a estrada), janelas e uma placa "Treetech, Fábrica de módulos".
 - **Interior:** uma esteira de 9,4 com 7 módulos passando em ciclo, 3 funcionários na montagem (movendo os braços) e 1 supervisor andando pelo corredor da frente. Há caixas de módulos empilhadas dentro e na entrada.
+- **Ala de protótipos:** uma ala de 14 × 5,5 atrás da linha de produção, com três salas (plaquetas na fachada sul): **Eletrônica** (bancada com 3 protótipos de módulos, placa, estante com caixas e 1 engenheiro), **Testes e ensaios** (câmara de ensaio térmico com um módulo em cima, bancada com osciloscópio e 1 engenheiro) e **Projeto e P&D** (2 mesas com PC, 2 engenheiros sentados e um quadro branco com o esboço de um novo módulo). A base de concreto foi ampliada para a ala.
 - **Abrir e fechar:** o clique no prédio alterna o telhado, como nos outros prédios; o preset **Fábrica** abre o telhado e mostra o interior.
 
 ### 12.6.6 Estrada e vans
@@ -495,7 +497,7 @@ O botão **Tour: como funciona** leva a câmera por oito passos, com um painel d
 
 1. **A Treetech**: fabrica módulos e também criou o software que os monitora.
 2. **A fábrica de módulos**: o galpão com a esteira (telhado aberto).
-3. **Da fábrica à subestação**: as vans na estrada.
+3. **A Treetech entrega e instala**: a Treetech disponibiliza os módulos, instala nos equipamentos e acompanha a operação (sem explicar o transporte).
 4. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
 5. **Forma 1: E3 (TCP/IP)**: modo E3, vista ampla da rede.
 6. **Forma 2: Sync (RabbitMQ)**: modo Sync, vista da fila.
@@ -504,10 +506,17 @@ O botão **Tour: como funciona** leva a câmera por oito passos, com um painel d
 
 Ao concluir ou fechar o tour, a cena volta ao modo Sync e aos rótulos padrão (só os dos módulos).
 
+### 12.6.9 Cidade viva
+
+- **Carros:** 3 carros de cores apagadas percorrem a avenida da cidade em um circuito de duas faixas (3,2, 2,6 e 3,6 unidades por segundo), com faróis e lanternas.
+- **Moradores:** 4 pessoas sem capacete andam nas calçadas, em escala 0,7, indo e voltando nos dois sentidos.
+- Os carros fazem a curva nas pontas da avenida sem suavização, e não há desvio entre eles.
+
 ### 12.7 Câmera, luz e sombras
 
 - Câmera em perspectiva (FOV 40) com `OrbitControls`, distância entre 5 e 220 e sem passar do chão.
 - Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Treetech** (abre o telhado da segunda empresa), **Rede** (cabos e fila do RabbitMQ), **Painel** (parede de telas do dashboard), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
+- **Modos de render:** Standard 3D e **Fim de Tarde**. O Fim de Tarde faz uma transição de cerca de 0,6 s: sol baixo e alaranjado (vindo do sudoeste, com sombras longas), luz ambiente arroxeada, céu em degradê, janelas dos prédios da Treetech acesas, faróis e lanternas dos veículos acesos, e todos os postes de luz com halo e poça de luz no chão. Há 9 luzes de ponto reais, nos postes alternados, e as 4 luzes de segurança da subestação. As luzes da cidade seguem o disjuntor: com ele aberto, os postes da cidade apagam.
 - Sol com sombras em um quadro de ±80 e mapa de 4096, para a cena inteira ter sombra. Isso deixa a sombra da subestação menos nítida que no código original.
 
 ### 12.8 Paleta
@@ -519,9 +528,9 @@ Ao concluir ou fechar o tour, a cena volta ao modo Sync e aos rótulos padrão (
 ### 12.9 Limitações conhecidas (herdadas do código do usuário)
 
 - O `useEffect` da cena tem lista de dependências vazia, então os botões de disjuntor e de carga não atualizam o LED dos disjuntores nem as partículas de cabo da subestação. Só a cidade reage ao disjuntor (pelo acréscimo da seção 12.4).
-- Os modos de render (raio-X, termografia) percorrem todas as malhas da cena, inclusive a cidade, a usina e as pessoas, e o modo normal não restaura as cores originais.
 - O clique para inspecionar componentes só alcança o grupo da subestação. Cidade, torres e usina não são clicáveis.
 - Os dados da comunicação são simulados no navegador, e os fatos sobre E3, Sync/RabbitMQ e PostgreSQL/SQL Server vêm só da explicação do usuário (ver [dominio-treetech.md](../../dominio-treetech.md)).
+- As luzes de ponto do Fim de Tarde aumentam o custo de render em celulares fracos; o desempenho não foi medido.
 - A cena precisa de internet, porque React, Three e Tailwind vêm de CDN.
 - O desempenho (fps) não foi medido em GPU real nem em celular.
 

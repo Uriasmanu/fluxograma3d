@@ -103,24 +103,24 @@
       },
       {
         title: 'A fábrica de módulos',
-        text: 'No galpão da Treetech os módulos são montados em uma linha de produção. Os funcionários montam as peças na esteira e as caixas saem para entrega.',
+        text: 'No galpão da Treetech os módulos são montados na linha de produção. Atrás dela ficam as salas de desenvolvimento de protótipos: eletrônica, testes e ensaios, e projeto.',
         camera: { position: [68, 16, 47], target: [54, 1, 33] },
         mode: 'sync',
         roofs: { plant: false, treetech: false, factory: true },
         labels: ['factory']
       },
       {
-        title: 'Da fábrica à subestação',
-        text: 'Vans levam os módulos da fábrica até a subestação e voltam vazias. É o caminho de ida e volta pela estrada, entre a Treetech e a subestação.',
+        title: 'A Treetech entrega e instala',
+        text: 'A Treetech disponibiliza os módulos, faz a instalação nos equipamentos da subestação e acompanha a operação. Da fábrica até a subestação, tudo é feito por ela.',
         camera: { position: [26, 42, 62], target: [26, 0, 19.5] },
         mode: 'sync',
         roofs: { plant: false, treetech: false, factory: false },
-        labels: ['vans', 'factory', 'substation']
+        labels: ['factory', 'substation']
       },
       {
         title: 'Os módulos instalados',
         text: 'Na subestação, os módulos ficam presos aos equipamentos. TM mede a temperatura do transformador, BM monitora as buchas, GMP mede gás e umidade do óleo e DM captura o estado dos contatos dos disjuntores.',
-        camera: { position: [11, 8, 11], target: [1, 1.8, 0.2] },
+        camera: { position: [16, 10, 15], target: [1, 1.8, 0.2] },
         mode: 'sync',
         roofs: { plant: false, treetech: false, factory: false },
         labels: ['tm', 'bm', 'gmp', 'dm1', 'dm2']
@@ -162,7 +162,7 @@
     // --- Componente Principal da Subestação ---
     function SubstationApp() {
       const [selectedComponent, setSelectedComponent] = useState(null);
-      const [viewMode, setViewMode] = useState('normal'); // 'normal', 'xray', 'thermal', 'night'
+      const [viewMode, setViewMode] = useState('normal'); // 'normal', 'dusk'
       const [breakerClosed, setBreakerClosed] = useState(true);
       const [loadLevel] = useState(78); // %
       const [alarms, setAlarms] = useState([]);
@@ -178,7 +178,8 @@
       loadLevelRef.current = loadLevel;
       const plantRoofApiRef = useRef({ setOpen: () => {} });
       const treetechRoofApiRef = useRef({ setOpen: () => {} });
-      const sceneApiRef = useRef({ setMode: () => {}, setRoofs: () => {}, setLabels: () => {} });
+      const sceneApiRef = useRef({ setMode: () => {}, setRoofs: () => {}, setLabels: () => {}, setDusk: () => {} });
+      const viewModeRef = useRef('normal');
 
       // Dados dos Componentes para inspeção técnica
       const componentData = {
@@ -247,7 +248,7 @@
         // Cena, Câmera e Renderizador
         const scene = new THREE.Scene();
         sceneRef.current = scene;
-        scene.background = new THREE.Color(viewMode === 'night' ? '#070b12' : '#dbeafe');
+        scene.background = new THREE.Color('#dbeafe');
 
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -275,10 +276,10 @@
         controlsRef.current = controls;
 
         // Iluminação Ambientes e Sol
-        const ambientLight = new THREE.AmbientLight(0xffffff, viewMode === 'night' ? 0.2 : 0.65);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
         scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, viewMode === 'night' ? 0.1 : 1.2);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
         sunLight.position.set(25, 35, 15);
         sunLight.castShadow = true;
         sunLight.shadow.mapSize.width = 4096;
@@ -292,11 +293,11 @@
         sunLight.shadow.camera.bottom = -d;
         scene.add(sunLight);
 
-        // Luzes Noturnas de Segurança (Spotlights nos cantos da cerca)
+        // Luzes de segurança nos cantos da cerca, acesas só no Fim de Tarde
         const nightSpotlights = [];
         const spotPos = [[-7.5, 7.5], [7.5, 7.5], [-7.5, -7.5], [7.5, -7.5]];
         spotPos.forEach(([x, z]) => {
-          const spot = new THREE.SpotLight(0xfffaed, viewMode === 'night' ? 2.5 : 0, 25, Math.PI / 4, 0.4);
+          const spot = new THREE.SpotLight(0xfffaed, 0, 25, Math.PI / 4, 0.4);
           spot.position.set(x, 4.5, z);
           spot.target.position.set(0, 1, 0);
           scene.add(spot);
@@ -769,7 +770,7 @@
           helmet.castShadow = true;
           worker.add(helmet);
 
-          worker.userData = { leftLeg, rightLeg, leftArm, rightArm, head };
+          worker.userData = { leftLeg, rightLeg, leftArm, rightArm, head, helmet };
           return worker;
         };
 
@@ -849,6 +850,54 @@
         const cityPulses = [];
         const cityWires = [];
         const cityWindows = [];
+
+        const duskGlows = [];
+        const duskWindowMats = [];
+        const duskLamps = [];
+        const duskLightMats = [];
+        const glowTexture = (() => {
+          const c = document.createElement('canvas');
+          c.width = 128;
+          c.height = 128;
+          const g = c.getContext('2d');
+          const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+          grad.addColorStop(0, 'rgba(255,230,170,1)');
+          grad.addColorStop(0.4, 'rgba(255,200,120,0.45)');
+          grad.addColorStop(1, 'rgba(255,190,100,0)');
+          g.fillStyle = grad;
+          g.fillRect(0, 0, 128, 128);
+          return new THREE.CanvasTexture(c);
+        })();
+        const headlightMat = new THREE.MeshStandardMaterial({ color: '#fff6d8', emissive: '#fff0c0', emissiveIntensity: 0.2 });
+        const taillightMat = new THREE.MeshStandardMaterial({ color: '#c04040', emissive: '#ff3020', emissiveIntensity: 0.2 });
+        duskLightMats.push({ mat: headlightMat, day: 0.2, dusk: 1.8 }, { mat: taillightMat, day: 0.2, dusk: 1.2 });
+
+        const addGlow = (parent, x, y, z, size, max, color = 0xffe0a0) => {
+          const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: glowTexture, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0
+          }));
+          sprite.position.set(x, y, z);
+          sprite.scale.set(size, size, 1);
+          sprite.visible = false;
+          parent.add(sprite);
+          const glow = { obj: sprite, max, city: false };
+          duskGlows.push(glow);
+          return glow;
+        };
+
+        const addVehicleLights = (group, frontZ, backZ, y, halfW) => {
+          const lightGeo = new THREE.BoxGeometry(0.16, 0.1, 0.04);
+          [-halfW, halfW].forEach(x => {
+            const head = new THREE.Mesh(lightGeo, headlightMat);
+            head.position.set(x, y, frontZ);
+            group.add(head);
+            const tail = new THREE.Mesh(lightGeo, taillightMat);
+            tail.position.set(x, y, backZ);
+            group.add(tail);
+          });
+          addGlow(group, 0, y, frontZ + 0.5, 1.8, 0.6);
+          addGlow(group, 0, y, backZ - 0.3, 0.9, 0.35, 0xff6a4a);
+        };
 
         // Grama de ligação entre a placa da subestação e a cidade
         const bridgeGround = new THREE.Mesh(new THREE.BoxGeometry(59.5, 0.4, 50), matGrass);
@@ -1132,6 +1181,7 @@
           head.position.set(0, 4.08, toward * 1.0);
           lamp.add(head);
 
+          duskLamps.push({ pos: new THREE.Vector3(cityWorld.position.x + lx, 4.08, cityWorld.position.z + lz + toward), city: true });
           cityWorld.add(lamp);
         });
 
@@ -1500,6 +1550,7 @@
           steamEmitters.forEach(emitter => {
             for (let i = 0; i < 6; i++) {
               const p = new THREE.Mesh(steamGeo, steamMat.clone());
+            p.material.userData.preserve = true;
               p.position.set(
                 emitter.x + (Math.random() - 0.5) * 0.2,
                 emitter.y + Math.random() * 1.5,
@@ -1598,6 +1649,7 @@
           const mat = (color, roughness = 0.6) => new THREE.MeshStandardMaterial({ color, roughness });
           const wallMat = mat('#dfe3e6');
           const glassMat = mat('#7f98aa', 0.3);
+          duskWindowMats.push(glassMat);
           const darkMat = mat('#3a4048', 0.5);
           const addMesh = (parent, geo, material, x, y, z) => {
             const mesh = new THREE.Mesh(geo, material);
@@ -1858,6 +1910,7 @@
           const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.5), streetLampMat);
           head.position.set(0, 4.08, -1.0);
           lamp.add(head);
+          duskLamps.push({ pos: new THREE.Vector3(lx, 4.08, 20.9), city: false });
           scene.add(lamp);
         });
 
@@ -1953,6 +2006,7 @@
           const roofMat = mat('#6b7d73');
           const doorMat = mat('#5a6772');
           const glassMat = mat('#7f98aa', 0.3);
+          duskWindowMats.push(glassMat);
           const crateMat = mat('#c9b89a');
 
           addSlab(factoryWorld, 26, 0.4, 26, matGrass, 0, -0.51, 0, false);
@@ -1984,7 +2038,7 @@
           });
 
           addSlab(walls, 3.6, 3.4, 0.08, doorMat, 0, 1.7, -4.04, false);
-          [-4.5, -1.5, 1.5, 4.5].forEach(wx => addSlab(walls, 1.6, 1.0, 0.04, glassMat, wx, 2.2, 4.02, false));
+          addSlab(walls, 1.2, 2.2, 0.06, doorMat, 0, 1.1, 4.03, false);
 
           const signCanvas = document.createElement('canvas');
           signCanvas.width = 1024;
@@ -2059,6 +2113,121 @@
             addSlab(factoryWorld, 0.8, 0.6, 0.8, crateMat, cx, cy, cz);
           });
 
+
+          // Ala de desenvolvimento de protótipos: três salas atrás da linha de produção
+          const annexH = 3.4;
+          const labFloorMat = mat('#d8d6d0', 0.8);
+          addSlab(factoryWorld, 16, 0.6, 3, mat('#c9ccce', 0.8), 0, -0.3, 9.5, false);
+          addSlab(factoryWorld, 16.6, 0.1, 3.3, mat('#7aa58a', 0.8), 0, -0.06, 9.65, false);
+          addSlab(building, 14, 0.1, 5.5, labFloorMat, 0, 0.05, 6.75, false);
+          addSlab(walls, 14, annexH, 0.25, wallMat, 0, annexH / 2, 9.375);
+          [-6.875, 6.875].forEach(wx => addSlab(walls, 0.25, annexH, 5.5, wallMat, wx, annexH / 2, 6.75));
+          [-2.3, 2.3].forEach(wx => addSlab(walls, 0.2, annexH, 3.85, wallMat, wx, annexH / 2, 7.325));
+          addSlab(walls, 14.02, 0.4, 0.27, moduleStripeMat, 0, 0.5, 9.375, false);
+          addSlab(roof, 14.8, 0.2, 6.0, roofMat, 0, 0.1 + annexH + 0.1, 6.7);
+
+          const makePlaque = (text) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 80;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f4f7f5';
+            ctx.fillRect(0, 0, 512, 80);
+            ctx.fillStyle = BRAND_GREEN;
+            ctx.fillRect(0, 0, 12, 80);
+            ctx.fillStyle = '#2b323a';
+            ctx.font = 'bold 38px Arial, sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 28, 42);
+            return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas) });
+          };
+          [[-4.65, 'Eletrônica'], [0, 'Testes e ensaios'], [4.65, 'Projeto e P&D']].forEach(([cx, text]) => {
+            addSlab(walls, 1.4, 0.9, 0.04, glassMat, cx - 0.8, 1.9, 9.51, false);
+            addSlab(walls, 0.9, 2.0, 0.05, doorMat, cx + 1.2, 1.0, 9.51, false);
+            const plaque = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.375), makePlaque(text));
+            plaque.position.set(cx, 2.95, 9.52);
+            walls.add(plaque);
+          });
+
+          const benchMat = mat('#a8896a', 0.7);
+          const pcbMat = mat('#2f6b4a', 0.6);
+          const darkLab = mat('#3a4048', 0.5);
+          const screenLab = new THREE.MeshStandardMaterial({ color: '#8fb4c8', emissive: '#6ea8c0', emissiveIntensity: 0.6, roughness: 0.3 });
+          const addBench = (x, z, w) => {
+            addSlab(furniture, w, 0.08, 0.9, benchMat, x, 0.9, z);
+            [-w / 2 + 0.1, w / 2 - 0.1].forEach(lx => addSlab(furniture, 0.08, 0.86, 0.8, metalMat, x + lx, 0.43, z));
+          };
+          const addEngineer = (x, z, color) => {
+            const engineer = createWorker(color);
+            engineer.position.set(x, 0.1, z);
+            engineer.userData.leftArm.rotation.x = -0.9;
+            engineer.userData.rightArm.rotation.x = -0.9;
+            building.add(engineer);
+            factoryWorkers.push({ group: engineer, phase: x * 1.3 });
+          };
+
+          // Sala 1: bancada de eletrônica com protótipos de módulos e uma estante de caixas
+          addBench(-4.5, 8.5, 3.4);
+          [-5.4, -4.5, -3.6].forEach(mx => {
+            const { group } = createModuleGroup(1.2);
+            group.position.set(mx, 1.1, 8.5);
+            furniture.add(group);
+          });
+          addSlab(furniture, 0.5, 0.03, 0.35, pcbMat, -3.2, 0.96, 8.3, false);
+          addSlab(furniture, 0.4, 1.6, 2.2, metalMat, -6.6, 0.8, 7.0);
+          [[-6.6, 0.45, 6.4], [-6.6, 0.45, 7.0], [-6.6, 0.45, 7.6], [-6.6, 1.15, 6.7], [-6.6, 1.15, 7.4]].forEach(([cx, cy, cz]) => addSlab(furniture, 0.5, 0.4, 0.5, crateMat, cx + 0.45, cy, cz));
+          addEngineer(-4.5, 7.7, '#8aa89a');
+
+          // Sala 2: câmara de ensaio térmico e bancada com osciloscópio
+          addSlab(furniture, 1.8, 1.7, 1.3, mat('#aab4bc', 0.5), -0.8, 0.85, 8.3);
+          addSlab(furniture, 1.1, 1.0, 0.04, glassMat, -0.8, 1.0, 7.64, false);
+          addSlab(furniture, 0.3, 0.2, 0.04, screenLab, -0.2, 1.5, 7.64, false);
+          const { group: chamberModule } = createModuleGroup(1.2);
+          chamberModule.position.set(-0.8, 1.88, 8.3);
+          furniture.add(chamberModule);
+          addBench(1.3, 8.6, 1.5);
+          addSlab(furniture, 0.55, 0.4, 0.4, darkLab, 1.3, 1.14, 8.7);
+          addSlab(furniture, 0.42, 0.26, 0.04, screenLab, 1.3, 1.16, 8.49, false);
+          addEngineer(0.4, 7.2, '#9db8a4');
+
+          // Sala 3: mesas de projeto com PC, dois engenheiros sentados e um quadro branco
+          const labChairMat = mat('#4a5360');
+          [3.5, 5.8].forEach((dx, i) => {
+            addSlab(furniture, 1.6, 0.06, 0.8, benchMat, dx, 0.75, 8.7);
+            [-0.75, 0.75].forEach(lx => addSlab(furniture, 0.05, 0.72, 0.7, benchMat, dx + lx, 0.36, 8.7));
+            addSlab(furniture, 0.55, 0.36, 0.03, screenLab, dx, 1.03, 8.95, false);
+            addSlab(furniture, 0.06, 0.2, 0.06, darkLab, dx, 0.88, 8.95, false);
+            addSlab(furniture, 0.45, 0.02, 0.15, darkLab, dx, 0.79, 8.55, false);
+            addSlab(furniture, 0.5, 0.06, 0.5, labChairMat, dx, 0.45, 7.7);
+            addSlab(furniture, 0.5, 0.55, 0.06, labChairMat, dx, 0.75, 7.45);
+            const engineer = createWorker(['#7fa88c', '#6f9a82'][i]);
+            engineer.position.set(dx, -0.23, 7.7);
+            engineer.userData.leftLeg.rotation.x = -1.45;
+            engineer.userData.rightLeg.rotation.x = -1.45;
+            building.add(engineer);
+            plantSeated.push({ worker: engineer, phase: 11 + i * 2.1 });
+          });
+          const boardCanvas = document.createElement('canvas');
+          boardCanvas.width = 512;
+          boardCanvas.height = 256;
+          const bctx = boardCanvas.getContext('2d');
+          bctx.fillStyle = '#f4f7f5';
+          bctx.fillRect(0, 0, 512, 256);
+          bctx.strokeStyle = BRAND_GREEN;
+          bctx.lineWidth = 6;
+          [[30, 60], [200, 60], [370, 60]].forEach(([bx, by]) => bctx.strokeRect(bx, by, 110, 70));
+          bctx.beginPath();
+          bctx.moveTo(140, 95); bctx.lineTo(200, 95);
+          bctx.moveTo(310, 95); bctx.lineTo(370, 95);
+          bctx.stroke();
+          bctx.fillStyle = '#2b323a';
+          bctx.font = 'bold 30px Arial, sans-serif';
+          bctx.fillText('Novo módulo', 30, 190);
+          const board = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(boardCanvas) }));
+          board.position.set(4.65, 2.3, 9.23);
+          board.rotation.y = Math.PI;
+          walls.add(board);
+
           factoryRoof.walls = walls;
           factoryRoof.roof = roof;
           factoryRoof.hit = building;
@@ -2084,6 +2253,7 @@
             addSlab(group, 0.95, 0.6, 0.75, bodyMat, 0, 0.52, 1.0);
             addSlab(group, 0.96, 0.18, 0.5, glass, 0, 0.8, 1.05, false);
             addSlab(group, 1.02, 0.14, 2.1, moduleStripeMat, 0, 0.5, -0.1, false);
+            addVehicleLights(group, 1.4, -1.17, 0.5, 0.3);
             [[-0.5, 0.7], [0.5, 0.7], [-0.5, -0.7], [0.5, -0.7]].forEach(([wx, wz]) => {
               const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.16, 12), wheelMat);
               wheel.rotation.z = Math.PI / 2;
@@ -2100,7 +2270,65 @@
         };
         buildVans();
 
+        // Cidade viva: carros na avenida e moradores nas calçadas
+        const cityCars = [];
+        const cityPeople = [];
+        const buildCityLife = () => {
+          const wheelMat = new THREE.MeshStandardMaterial({ color: '#2b323a', roughness: 0.8 });
+          const glassMat = new THREE.MeshStandardMaterial({ color: '#7f98aa', roughness: 0.3 });
+          const carPath = makePath([[-8, 1.2], [24, 1.2], [24, -1.2], [-8, -1.2]], 'loop');
+          [['#a8606c', 0, 3.2], ['#5f8aa5', 23, 2.6], ['#c9b87a', 46, 3.6]].forEach(([color, offset, speed]) => {
+            const car = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45 });
+            addSlab(car, 0.9, 0.35, 1.9, bodyMat, 0, 0.38, 0);
+            addSlab(car, 0.8, 0.3, 1.0, bodyMat, 0, 0.7, -0.1);
+            addSlab(car, 0.82, 0.2, 0.9, glassMat, 0, 0.72, -0.1, false);
+            [[-0.45, 0.6], [0.45, 0.6], [-0.45, -0.6], [0.45, -0.6]].forEach(([wx, wz]) => {
+              const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 12), wheelMat);
+              wheel.rotation.z = Math.PI / 2;
+              wheel.position.set(wx, 0.2, wz);
+              car.add(wheel);
+            });
+            addVehicleLights(car, 0.96, -0.96, 0.42, 0.3);
+            cityWorld.add(car);
+            cityCars.push({ group: car, path: carPath, speed, offset });
+          });
+
+          [
+            ['#c8a07a', [[-7, 3.8], [22, 3.8]], 0.9, 0],
+            ['#8aa0c0', [[22, -3.8], [-7, -3.8]], 1.1, 12],
+            ['#b88a9a', [[-7, 3.8], [22, 3.8]], 0.8, 40],
+            ['#9ab88a', [[22, -3.8], [-7, -3.8]], 1.0, 33]
+          ].forEach(([color, points, speed, offset]) => {
+            const person = createWorker(color);
+            person.userData.helmet.visible = false;
+            person.scale.setScalar(0.7);
+            cityWorld.add(person);
+            cityPeople.push({ group: person, path: makePath(points, 'pingpong'), speed, offset });
+          });
+        };
+        buildCityLife();
+
         const updateWorld = (time) => {
+          cityCars.forEach(car => {
+            const s = samplePath(car.path, time * car.speed + car.offset);
+            car.group.position.set(s.x, 0.03, s.z);
+            car.group.rotation.y = s.heading;
+          });
+
+          cityPeople.forEach(person => {
+            const travelled = time * person.speed + person.offset;
+            const s = samplePath(person.path, travelled);
+            person.group.position.set(s.x, 0.02, s.z);
+            person.group.rotation.y = s.heading;
+            const swing = Math.sin(travelled * 5) * 0.7;
+            const parts = person.group.userData;
+            parts.leftLeg.rotation.x = swing;
+            parts.rightLeg.rotation.x = -swing;
+            parts.leftArm.rotation.x = -swing * 0.8;
+            parts.rightArm.rotation.x = swing * 0.8;
+          });
+
           vans.forEach(van => {
             const travelled = time * van.speed + van.offset;
             const s = samplePath(van.path, travelled);
@@ -2206,6 +2434,7 @@
         scene.add(queueGroup);
 
         const queueGlassMat = new THREE.MeshStandardMaterial({ color: '#cfe3ea', transparent: true, opacity: 0.28, roughness: 0.1 });
+        queueGlassMat.userData.preserve = true;
         const queueMetalMat = new THREE.MeshStandardMaterial({ color: '#7a8088', roughness: 0.5 });
         const queueTube = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 2.0, 16), queueGlassMat);
         queueTube.position.y = 1.0;
@@ -2613,6 +2842,93 @@
           });
         };
 
+        // Fim de tarde: sol baixo e alaranjado, céu em degradê, postes, janelas e faróis acesos
+        const skyCanvas = document.createElement('canvas');
+        skyCanvas.width = 4;
+        skyCanvas.height = 512;
+        const skyCtx = skyCanvas.getContext('2d');
+        const skyGrad = skyCtx.createLinearGradient(0, 0, 0, 512);
+        skyGrad.addColorStop(0, '#2c3a66');
+        skyGrad.addColorStop(0.45, '#8a5f86');
+        skyGrad.addColorStop(0.75, '#e28a6a');
+        skyGrad.addColorStop(1, '#f6c183');
+        skyCtx.fillStyle = skyGrad;
+        skyCtx.fillRect(0, 0, 4, 512);
+        const duskSky = new THREE.CanvasTexture(skyCanvas);
+        const daySky = new THREE.Color('#dbeafe');
+
+        const poolGeo = new THREE.PlaneGeometry(9, 9);
+        const lampLights = [];
+        duskLamps.forEach((lamp, i) => {
+          const city = lamp.city;
+          const pool = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({
+            map: glowTexture, color: 0xffd9a0, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0
+          }));
+          pool.material.userData.preserve = true;
+          pool.rotation.x = -Math.PI / 2;
+          pool.position.set(lamp.pos.x, city ? 0.38 : 0.1, lamp.pos.z);
+          pool.visible = false;
+          scene.add(pool);
+          duskGlows.push({ obj: pool, max: city ? 0.5 : 0.9, city });
+          const halo = addGlow(scene, lamp.pos.x, lamp.pos.y, lamp.pos.z, 2.6, 0.95);
+          halo.city = city;
+          if (i % 2 === 0) {
+            const light = new THREE.PointLight(0xffd9a0, 0, 14, 2);
+            light.position.set(lamp.pos.x, 3.6, lamp.pos.z);
+            scene.add(light);
+            lampLights.push({ light, city });
+          }
+        });
+
+        const duskState = { target: 0, level: 0 };
+        const dayAmbient = new THREE.Color(0xffffff);
+        const duskAmbient = new THREE.Color(0x9a86b4);
+        const daySun = new THREE.Color(0xffffff);
+        const duskSun = new THREE.Color(0xff9d57);
+        const dayOffset = new THREE.Vector3(25, 35, 15);
+        const duskOffset = new THREE.Vector3(-48, 20, 38);
+        const dayTarget = new THREE.Vector3(0, 0, 0);
+        const duskTarget = new THREE.Vector3(30, 0, 10);
+        scene.add(sunLight.target);
+
+        const updateDusk = () => {
+          const before = duskState.level;
+          duskState.level += Math.max(-0.04, Math.min(0.04, duskState.target - duskState.level));
+          const d = duskState.level;
+          if (d === before && duskState.applied === d) return;
+          duskState.applied = d;
+
+          ambientLight.color.lerpColors(dayAmbient, duskAmbient, d);
+          ambientLight.intensity = 0.65 - 0.25 * d;
+          sunLight.color.lerpColors(daySun, duskSun, d);
+          sunLight.intensity = 1.2 - 0.15 * d;
+          sunLight.target.position.lerpVectors(dayTarget, duskTarget, d);
+          sunLight.position.lerpVectors(dayOffset, duskOffset, d).add(sunLight.target.position);
+          renderer.toneMappingExposure = 1.1 - 0.1 * d;
+          nightSpotlights.forEach(spot => { spot.intensity = 1.8 * d; });
+
+          duskWindowMats.forEach(mat => {
+            mat.emissive.set('#f3d98a');
+            mat.emissiveIntensity = 0.9 * d;
+          });
+          duskLightMats.forEach(({ mat, day, dusk }) => { mat.emissiveIntensity = day + (dusk - day) * d; });
+          if (viewModeRef.current === 'dusk') scene.background = d > 0.5 ? duskSky : daySky;
+        };
+
+        const applyDuskLamps = () => {
+          const cityOn = breakerClosedRef.current;
+          const d = duskState.level;
+          duskGlows.forEach(glow => {
+            const on = d > 0.01 && (!glow.city || cityOn);
+            glow.obj.visible = on;
+            if (on) {
+              glow.obj.material.transparent = true;
+              glow.obj.material.opacity = glow.max * d;
+            }
+          });
+          lampLights.forEach(({ light, city }) => { light.intensity = (!city || cityOn) ? 1.6 * d : 0; });
+        };
+
         // Interface com o React: o tour liga o modo, abre os telhados e escolhe os rótulos
         const roofByName = { plant: plantRoof, treetech: treetechRoof, factory: factoryRoof };
         sceneApiRef.current = {
@@ -2630,7 +2946,8 @@
               if (roofByName[name]) roofByName[name].open = state[name];
             });
           },
-          setLabels
+          setLabels,
+          setDusk: (on) => { duskState.target = on ? 1 : 0; }
         };
 
         // --- SISTEMA DE SELEÇÃO E RAYCASTING (CLIQUE NOS COMPONENTES) ---
@@ -2747,6 +3064,8 @@
 
           updateWorld(time);
           updateNetwork(time);
+          updateDusk();
+          applyDuskLamps();
 
           // Usina: ventoinhas girando e fumaça nas chaminés
           plantFans.forEach(fan => {
@@ -2822,43 +3141,14 @@
         };
       }, []);
 
-      // Atualizar Modos de Renderização (Normal, Raio-X, Térmico, Noturno)
+      // Atualizar o modo de renderização (Normal e Fim de Tarde)
       useEffect(() => {
         if (!sceneRef.current) return;
         const scene = sceneRef.current;
 
-        scene.traverse((child) => {
-          if (child.isMesh) {
-            if (viewMode === 'xray') {
-              child.material.wireframe = true;
-              child.material.transparent = true;
-              child.material.opacity = 0.6;
-            } else if (viewMode === 'thermal') {
-              child.material.wireframe = false;
-              child.material.transparent = false;
-
-              // Simular assinatura de calor termográfica
-              if (child.parent && child.parent.name === 'transformer') {
-                child.material.color.setHex(0xef4444); // Quente (Vermelho/Laranja)
-              } else if (child.parent && child.parent.name === 'radiators') {
-                child.material.color.setHex(0xf97316);
-              } else {
-                child.material.color.setHex(0x3b82f6); // Frio (Azul)
-              }
-            } else {
-              // Modo Normal / Noturno
-              child.material.wireframe = false;
-              child.material.transparent = false;
-              child.material.opacity = 1.0;
-            }
-          }
-        });
-
-        if (viewMode === 'night') {
-          scene.background = new THREE.Color('#070b12');
-        } else {
-          scene.background = new THREE.Color('#dbeafe');
-        }
+        viewModeRef.current = viewMode;
+        if (viewMode !== 'dusk') scene.background = new THREE.Color('#dbeafe');
+        sceneApiRef.current.setDusk(viewMode === 'dusk');
       }, [viewMode]);
 
       // Alternar Ângulos de Câmera
@@ -3015,9 +3305,7 @@
               </div>
               <div className="flex flex-col gap-1.5">
                 <button onClick={() => setViewMode('normal')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'normal' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Standard 3D</button>
-                <button onClick={() => setViewMode('xray')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'xray' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Raio-X (Wireframe)</button>
-                <button onClick={() => setViewMode('thermal')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'thermal' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Termografia IR</button>
-                <button onClick={() => setViewMode('night')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'night' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Visão Noturna</button>
+                <button onClick={() => setViewMode('dusk')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'dusk' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Fim de Tarde</button>
               </div>
             </div>
 

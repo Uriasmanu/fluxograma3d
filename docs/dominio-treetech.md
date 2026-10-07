@@ -55,6 +55,7 @@ Nos dois casos:    Sigma ──▶ Banco de dados (PostgreSQL ou SQL Server) ─
 | **Subestação de 138 kV** | O local onde os módulos da Treetech ficam instalados |
 | Caixas brancas com faixa verde e LED (TM, BM, GMP, DM 1, DM 2) | Os **módulos da Treetech** nos equipamentos: TM no tanque do transformador, BM no topo, perto das buchas, GMP ao lado do transformador (com um tubo até o óleo) e DM nos dois disjuntores. O LED pisca em branco quando o módulo se comunica |
 | **Galpão com linha de produção** | A **fábrica de módulos** da Treetech: esteira com módulos, funcionários na montagem e um supervisor, com caixas de módulos na entrada |
+| **Três salas atrás da linha de produção** | O **desenvolvimento de protótipos**: eletrônica (bancada com protótipos), testes e ensaios (câmara térmica e osciloscópio) e projeto e P&D (mesas com PC e quadro branco) |
 | **Estrada com duas vans** | O transporte dos módulos da fábrica até o portão sul da subestação. Elas saem carregadas e voltam vazias |
 | **Escritório da Treetech, com a torre do servidor** | O servidor da Treetech, que roda o RabbitMQ, o Sigma e o banco de dados |
 | **Tubo de vidro com pilha de caixas laranja** | A **fila do RabbitMQ**; a altura da pilha é a profundidade da fila |
@@ -89,7 +90,7 @@ O botão **Tour: como funciona**, no canto esquerdo, leva a câmera por oito pas
 
 1. **A Treetech**: fabrica módulos e também fez o software que os monitora.
 2. **A fábrica de módulos**: o galpão com a linha de produção.
-3. **Da fábrica à subestação**: as vans na estrada, indo e voltando.
+3. **A Treetech entrega e instala**: a Treetech disponibiliza os módulos, instala nos equipamentos e acompanha a operação.
 4. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
 5. **Forma 1: E3 (TCP/IP)**: o Sigma pergunta, o módulo responde.
 6. **Forma 2: Sync (RabbitMQ)**: o módulo envia, a fila guarda, o Sigma retira.
