@@ -114,6 +114,8 @@
       const particleSystemsRef = useRef([]);
       const breakerClosedRef = useRef(true);
       breakerClosedRef.current = breakerClosed;
+      const loadLevelRef = useRef(78);
+      loadLevelRef.current = loadLevel;
       const plantRoofApiRef = useRef({ setOpen: () => {} });
       const treetechRoofApiRef = useRef({ setOpen: () => {} });
 
@@ -1123,6 +1125,8 @@
         const treetechRoof = { open: false, amount: 0, walls: null, roof: null, hit: null };
         const roofToggles = [plantRoof, treetechRoof];
         const treetechLed = { mesh: null };
+        const treetechWalker = { group: null, path: null };
+        const treetechDashboard = { ctx: null, texture: null, width: 1920, height: 600 };
 
         const buildPowerPlant = () => {
           // Texturas procedurais: faixa de perigo, persiana e janelas em grade
@@ -1638,6 +1642,87 @@
           furniture.add(towerLed);
           treetechLed.mesh = towerLed;
 
+          // Funcionários sentados: virados para a mesa (norte), pernas à frente e braços no teclado
+          const EMPLOYEE_COLORS = ['#7fa88c', '#9db8a4', '#6f9a82', '#a8bfae', '#8aa89a'];
+          let employeeCount = 0;
+          const seatEmployee = (x, z) => {
+            const employee = createWorker(EMPLOYEE_COLORS[employeeCount % EMPLOYEE_COLORS.length]);
+            employee.position.set(x, -0.23, z);
+            employee.rotation.y = Math.PI;
+            employee.userData.leftLeg.rotation.x = -1.45;
+            employee.userData.rightLeg.rotation.x = -1.45;
+            employee.userData.leftArm.rotation.x = -1.0;
+            employee.userData.rightArm.rotation.x = -1.0;
+            building.add(employee);
+            plantSeated.push({ worker: employee, phase: 5 + employeeCount * 1.9 });
+            employeeCount += 1;
+          };
+
+          // Mesa de trabalho: mesa, monitor, teclado, torre do PC e cadeira, com um funcionário sentado
+          const workScreenMat = new THREE.MeshStandardMaterial({ color: '#8fb4c8', emissive: '#6ea8c0', emissiveIntensity: 0.6, roughness: 0.3 });
+          const addWorkstation = (dx, deskZ) => {
+            addMesh(furniture, box(1.6, 0.06, 0.8), deskMat, dx, 0.75, deskZ);
+            addMesh(furniture, box(0.05, 0.72, 0.7), deskMat, dx - 0.75, 0.36, deskZ);
+            addMesh(furniture, box(0.05, 0.72, 0.7), deskMat, dx + 0.75, 0.36, deskZ);
+            addMesh(furniture, box(0.55, 0.36, 0.03), workScreenMat, dx, 1.03, deskZ - 0.25);
+            addMesh(furniture, box(0.06, 0.2, 0.06), darkMat, dx, 0.88, deskZ - 0.25);
+            addMesh(furniture, box(0.45, 0.02, 0.15), darkMat, dx, 0.79, deskZ + 0.1);
+            addMesh(furniture, box(0.2, 0.42, 0.4), darkMat, dx + 1.05, 0.21, deskZ);
+            addMesh(furniture, box(0.5, 0.06, 0.5), chairMat, dx, 0.45, deskZ + 1.0);
+            addMesh(furniture, box(0.5, 0.55, 0.06), chairMat, dx, 0.75, deskZ + 1.25);
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.42, 8), chairMat);
+            stem.position.set(dx, 0.21, deskZ + 1.0);
+            furniture.add(stem);
+            seatEmployee(dx, deskZ + 1.0);
+          };
+
+          seatEmployee(0, -2.7);
+          addWorkstation(-3.2, -3.7);
+          addWorkstation(3.2, -3.7);
+          addWorkstation(-2.2, -1.0);
+          addWorkstation(2.2, -1.0);
+
+          // Funcionário andando pelo corredor entre as duas fileiras
+          const treetechWalkerGroup = createWorker('#9aa7b8');
+          treetechWalkerGroup.position.set(-4.3, 0.1, -1.95);
+          building.add(treetechWalkerGroup);
+          treetechWalker.group = treetechWalkerGroup;
+          treetechWalker.path = makePath([[-4.3, -1.95], [4.3, -1.95]], 'pingpong');
+
+          // Sala de monitoramento (anexo a oeste): painel de 4 x 2 telas com o dashboard e dois operadores
+          addMesh(treetechWorld, box(4, 0.6, 16), mat('#c9ccce', 0.8), -10, -0.3, 0).castShadow = false;
+          addMesh(treetechWorld, box(4.3, 0.1, 16.6), mat('#7aa58a', 0.8), -10.15, -0.06, 0).castShadow = false;
+
+          addMesh(building, box(6, 0.1, bd), mat('#d8d6d0', 0.8), -8, 0.05, bz).castShadow = false;
+          addMesh(walls, box(6, wallH, thick), wallMat, -8, wallH / 2, bz - bd / 2 + thick / 2);
+          addMesh(walls, box(6, wallH, thick), wallMat, -8, wallH / 2, bz + bd / 2 - thick / 2);
+          addMesh(walls, box(thick, wallH, bd - thick * 2), wallMat, -11 + thick / 2, wallH / 2, bz);
+          [-9.6, -6.4].forEach(wx => {
+            addMesh(walls, box(1.2, 1.3, 0.04), glassMat, wx, 1.8, southFace).castShadow = false;
+          });
+          addMesh(roof, box(6.4, 0.25, bd + 0.4), mat('#6b7d73'), -8, 0.1 + wallH + 0.125, bz);
+
+          const dashCanvas = document.createElement('canvas');
+          dashCanvas.width = treetechDashboard.width;
+          dashCanvas.height = treetechDashboard.height;
+          treetechDashboard.ctx = dashCanvas.getContext('2d');
+          treetechDashboard.texture = new THREE.CanvasTexture(dashCanvas);
+          treetechDashboard.texture.anisotropy = 4;
+
+          const wallZ = -3.85;
+          addMesh(furniture, box(4.9, 1.6, 0.12), mat('#1a2026', 0.5), -8, 1.75, wallZ);
+          addMesh(furniture, box(0.12, 0.95, 0.12), mat('#1a2026', 0.5), -10.5, 0.475, wallZ);
+          addMesh(furniture, box(0.12, 0.95, 0.12), mat('#1a2026', 0.5), -5.5, 0.475, wallZ);
+          const dashboardScreen = new THREE.Mesh(
+            new THREE.PlaneGeometry(4.8, 1.5),
+            new THREE.MeshBasicMaterial({ map: treetechDashboard.texture })
+          );
+          dashboardScreen.position.set(-8, 1.75, wallZ + 0.07);
+          furniture.add(dashboardScreen);
+
+          addWorkstation(-9.2, -1.2);
+          addWorkstation(-6.8, -1.2);
+
           // Placa "Treetech" na entrada, legível dos dois lados
           const signMat = new THREE.MeshBasicMaterial({ map: signTexture });
           const signZ = bz + bd / 2 + 3.2;
@@ -1692,9 +1777,9 @@
         // Cada cabo sai da torre do PC, corre rente ao chão até a parede leste, segue para leste e entra na Treetech
         const serverX = TREETECH_POS.x + 1.7;
         const netCables = [
-          { role: 'producer', towerX: -3.9, laneZ: 0.25, finalX: serverX + 0.2 },
-          { role: 'producer', towerX: -2.1, laneZ: 0.15, finalX: serverX },
-          { role: 'consumer', towerX: -0.3, laneZ: 0.05, finalX: serverX - 0.2 }
+          { role: 'producer', label: 'PC 1', towerX: -3.9, laneZ: 0.25, finalX: serverX + 0.2 },
+          { role: 'producer', label: 'PC 2', towerX: -2.1, laneZ: 0.15, finalX: serverX },
+          { role: 'consumer', label: 'PC 3', towerX: -0.3, laneZ: 0.05, finalX: serverX - 0.2 }
         ].map(def => {
           const points = [
             plantToWorld(def.towerX, 0.35, 0.45),
@@ -1712,7 +1797,7 @@
             length += points[i].distanceTo(points[i + 1]);
             lengths.push(length);
           }
-          return { role: def.role, points, lengths, length };
+          return { role: def.role, label: def.label, points, lengths, length };
         });
 
         const producerCables = netCables.filter(cable => cable.role === 'producer');
@@ -1771,7 +1856,11 @@
 
         // Simulação: publicadores enviam em intervalos aleatórios; o consumidor retira da fila a cada 2,5 s
         const NET_SPEED = 6;
-        const net = { last: 0, depth: 0, flash: 0, nextPublish: [1.5, 3.5], nextConsume: 6 };
+        const net = {
+          last: 0, depth: 0, flash: 0, nextPublish: [1.5, 3.5], nextConsume: 6,
+          published: 0, consumed: 0, acks: 0, pubBucket: 0, consBucket: 0,
+          nextTick: 1, nextDraw: 0, history: { pub: [], cons: [] }, events: []
+        };
         const packets = [];
 
         const cablePoint = (cable, dist) => {
@@ -1794,9 +1883,166 @@
           packets.push({ mesh, cable, dir, kind, dist });
         };
 
+        const formatClock = (time) =>
+          `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(Math.floor(time % 60)).padStart(2, '0')}`;
+
+        const logEvent = (time, text) => {
+          net.events.unshift(`${formatClock(time)}  ${text}`);
+          net.events.length = Math.min(net.events.length, 6);
+        };
+
+        // Dashboard do painel de telas: um quadro único de 1920 x 600, dividido em 4 x 2 telas por moldura escura
+        const drawDashboard = () => {
+          const { ctx, texture, width: W, height: H } = treetechDashboard;
+          if (!ctx) return;
+          const tileW = W / 4;
+          const tileH = H / 2;
+          const orange = '#d9783a';
+          const green = '#6fbf8a';
+          const grey = '#8aa0b2';
+          const white = '#eef2f5';
+
+          ctx.fillStyle = '#0f1720';
+          ctx.fillRect(0, 0, W, H);
+          ctx.textBaseline = 'top';
+
+          const title = (text, col, row) => {
+            ctx.fillStyle = grey;
+            ctx.font = 'bold 24px Arial, sans-serif';
+            ctx.fillText(text.toUpperCase(), col * tileW + 28, row * tileH + 22);
+          };
+          const avg = (list, n) => {
+            const last = list.slice(-n);
+            return last.length ? last.reduce((sum, v) => sum + v, 0) / last.length : 0;
+          };
+
+          title('Mensagens / s', 0, 0);
+          ctx.fillStyle = orange;
+          ctx.font = 'bold 120px Arial, sans-serif';
+          ctx.fillText(avg(net.history.pub, 5).toFixed(1), 28, 70);
+          ctx.fillStyle = green;
+          ctx.font = '32px Arial, sans-serif';
+          ctx.fillText(`consumidas ${avg(net.history.cons, 5).toFixed(1)}`, 28, 225);
+
+          title('Fila', 1, 0);
+          ctx.fillStyle = white;
+          ctx.font = 'bold 120px Arial, sans-serif';
+          ctx.fillText(String(net.depth), tileW + 28, 70);
+          ctx.fillStyle = grey;
+          ctx.font = '32px Arial, sans-serif';
+          ctx.fillText('mensagens na fila', tileW + 28, 205);
+          ctx.fillStyle = '#1f2b36';
+          ctx.fillRect(tileW + 28, 255, tileW - 56, 16);
+          ctx.fillStyle = orange;
+          ctx.fillRect(tileW + 28, 255, ((tileW - 56) * Math.min(net.depth, MAX_QUEUE_BOXES)) / MAX_QUEUE_BOXES, 16);
+
+          title('Conexões', 2, 0);
+          netCables.forEach((cable, i) => {
+            const y = 78 + i * 62;
+            ctx.fillStyle = green;
+            ctx.beginPath();
+            ctx.arc(2 * tileW + 44, y + 18, 11, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = white;
+            ctx.font = '34px Arial, sans-serif';
+            ctx.fillText(`${cable.label}  ${cable.role === 'producer' ? 'produtor' : 'consumidor'}`, 2 * tileW + 72, y);
+          });
+
+          title('Subestação', 3, 0);
+          const closed = breakerClosedRef.current;
+          const load = loadLevelRef.current;
+          ctx.fillStyle = closed ? green : '#c26a62';
+          ctx.font = 'bold 42px Arial, sans-serif';
+          ctx.fillText(closed ? 'Disjuntor fechado' : 'Disjuntor aberto', 3 * tileW + 28, 76);
+          ctx.fillStyle = white;
+          ctx.font = 'bold 92px Arial, sans-serif';
+          ctx.fillText(`${closed ? Math.round(48 * load / 100) : 0} MW`, 3 * tileW + 28, 130);
+          ctx.fillStyle = grey;
+          ctx.font = '30px Arial, sans-serif';
+          ctx.fillText(`carga ${load}%`, 3 * tileW + 28, 245);
+
+          title('Mensagens por segundo (60 s)', 0, 1);
+          const chartLeft = 28;
+          const chartRight = 2 * tileW - 28;
+          const chartTop = tileH + 80;
+          const chartBottom = H - 34;
+          const maxValue = Math.max(3, ...net.history.pub, ...net.history.cons);
+          ctx.strokeStyle = '#26333f';
+          ctx.lineWidth = 2;
+          for (let g = 0; g <= 3; g++) {
+            const gy = chartTop + ((chartBottom - chartTop) * g) / 3;
+            ctx.beginPath();
+            ctx.moveTo(chartLeft, gy);
+            ctx.lineTo(chartRight, gy);
+            ctx.stroke();
+          }
+          const plot = (series, color) => {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            const offset = 60 - series.length;
+            series.forEach((value, i) => {
+              const x = chartLeft + ((chartRight - chartLeft) * (i + offset)) / 59;
+              const y = chartBottom - ((chartBottom - chartTop) * value) / maxValue;
+              if (i === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+          };
+          plot(net.history.pub, orange);
+          plot(net.history.cons, green);
+
+          title('Totais', 2, 1);
+          [['publicadas', net.published], ['consumidas', net.consumed], ['acks', net.acks]].forEach(([label, value], i) => {
+            ctx.fillStyle = grey;
+            ctx.font = '30px Arial, sans-serif';
+            ctx.fillText(label, 2 * tileW + 28, tileH + 70 + i * 62);
+            ctx.fillStyle = white;
+            ctx.font = 'bold 44px Arial, sans-serif';
+            ctx.fillText(String(value), 2 * tileW + 270, tileH + 62 + i * 62);
+          });
+
+          title('Eventos', 3, 1);
+          ctx.fillStyle = white;
+          ctx.font = '25px Arial, sans-serif';
+          net.events.forEach((event, i) => ctx.fillText(event, 3 * tileW + 28, tileH + 66 + i * 36));
+
+          ctx.strokeStyle = '#05080b';
+          ctx.lineWidth = 10;
+          for (let i = 1; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i * tileW, 0);
+            ctx.lineTo(i * tileW, H);
+            ctx.stroke();
+          }
+          ctx.beginPath();
+          ctx.moveTo(0, tileH);
+          ctx.lineTo(W, tileH);
+          ctx.stroke();
+          ctx.strokeRect(5, 5, W - 10, H - 10);
+
+          texture.needsUpdate = true;
+        };
+
+        drawDashboard();
+
         const updateNetwork = (time) => {
           const dt = Math.min(time - net.last, 0.1);
           net.last = time;
+
+          if (time >= net.nextTick) {
+            net.nextTick = time + 1;
+            net.history.pub.push(net.pubBucket);
+            net.history.cons.push(net.consBucket);
+            net.pubBucket = 0;
+            net.consBucket = 0;
+            if (net.history.pub.length > 60) net.history.pub.shift();
+            if (net.history.cons.length > 60) net.history.cons.shift();
+          }
+          if (time >= net.nextDraw) {
+            net.nextDraw = time + 0.5;
+            drawDashboard();
+          }
 
           net.nextPublish.forEach((at, i) => {
             if (time < at) return;
@@ -1825,10 +2071,20 @@
                 net.flash = 0.25;
                 if (p.kind === 'msg') {
                   net.depth = Math.min(net.depth + 1, 99);
+                  net.published += 1;
+                  net.pubBucket += 1;
+                  logEvent(time, `${p.cable.label} publicou`);
                   spawnPacket(p.cable, -1, 'ack');
+                } else {
+                  net.acks += 1;
                 }
               } else if (p.kind === 'msg') {
+                net.consumed += 1;
+                net.consBucket += 1;
+                logEvent(time, `${p.cable.label} consumiu`);
                 spawnPacket(p.cable, 1, 'ack');
+              } else {
+                net.acks += 1;
               }
               scene.remove(p.mesh);
               packets.splice(i, 1);
@@ -1935,19 +2191,20 @@
             parts.rightArm.rotation.x = -1.0 + Math.sin(t * 9 + 1.3) * 0.08;
             parts.head.rotation.x = Math.sin(t * 0.7) * 0.08;
           });
-          if (plantOfficeWalker.group) {
+          [plantOfficeWalker, treetechWalker].forEach(officeWalker => {
+            if (!officeWalker.group) return;
             const travelled = time * 0.8;
-            const s = samplePath(plantOfficeWalker.path, travelled);
-            plantOfficeWalker.group.position.set(s.x, 0.1, s.z);
-            plantOfficeWalker.group.rotation.y = s.heading;
+            const s = samplePath(officeWalker.path, travelled);
+            officeWalker.group.position.set(s.x, 0.1, s.z);
+            officeWalker.group.rotation.y = s.heading;
 
             const swing = Math.sin(travelled * 4.5) * 0.7;
-            const parts = plantOfficeWalker.group.userData;
+            const parts = officeWalker.group.userData;
             parts.leftLeg.rotation.x = swing;
             parts.rightLeg.rotation.x = -swing;
             parts.leftArm.rotation.x = -swing * 0.8;
             parts.rightArm.rotation.x = swing * 0.8;
-          }
+          });
           roofToggles.forEach(toggle => {
             toggle.amount += ((toggle.open ? 1 : 0) - toggle.amount) * 0.12;
             if (toggle.walls) toggle.walls.scale.y = 1 - 0.7 * toggle.amount;
@@ -2092,6 +2349,11 @@
             controls.object.position.set(60, 24, 26);
             controls.target.set(38, 0.5, 3);
             break;
+          case 'dashboard':
+            treetechRoofApiRef.current.setOpen(true);
+            controls.object.position.set(46, 7, 17);
+            controls.target.set(46, 2.1, 5.7);
+            break;
           case 'treetech':
             treetechRoofApiRef.current.setOpen(true);
             controls.object.position.set(66, 14, 23);
@@ -2204,6 +2466,7 @@
                 <button onClick={() => setCameraPreset('interior')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Interior</button>
                 <button onClick={() => setCameraPreset('treetech')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Treetech</button>
                 <button onClick={() => setCameraPreset('network')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Rede</button>
+                <button onClick={() => setCameraPreset('dashboard')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Painel</button>
                 <button onClick={() => setCameraPreset('iso')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Isométrica</button>
                 <button onClick={() => setCameraPreset('top')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Planta Baixa</button>
                 <button onClick={() => setCameraPreset('trafo')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Trafo 01</button>
