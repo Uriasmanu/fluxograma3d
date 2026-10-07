@@ -353,6 +353,7 @@ Esta seção descreve a cena que abre na página principal. Ela parte do código
 | Usina elétrica (prédios, chaminés, ventoinhas, tambores, fumaça) | Código do usuário, enviado depois (somente a parte 3D; o pequeno pátio de transformadores dela foi removido a pedido) |
 | 2 pessoas andando entre a subestação e a usina | Acréscimo |
 | Interior do escritório da usina (3 mesas com PC, 3 pessoas sentadas, 1 andando) | Acréscimo |
+| Treetech: segunda empresa, com o PC do RabbitMQ dentro | Acréscimo |
 | Portão na cerca leste | Acréscimo |
 | Cores mais apagadas na cidade e na usina | Ajuste pedido |
 
@@ -367,6 +368,7 @@ Unidade em metros nominais; Y para cima; a subestação fica na origem.
 | Torres de transmissão | Em (34; −4,5) e (44; −4,5), alinhadas com o pórtico da subestação |
 | Cidade | Chão de 34 × 34 com centro em (54; −18,5), duas ruas em cruz, 8 casas, 8 postes, árvores |
 | Faixa de grama de ligação | De x = 12,5 a x = 72 e de z = −37 a z = 13, abaixo da cidade e das torres |
+| Treetech | Centro em (54; 0,3; 9,5), ao sul da cidade. Base de 16 × 16 e grama de 26 × 26 (ver 12.6.2) |
 
 A usina está girada para as chaminés e os prédios altos ficarem do lado sul, longe dos cabos que saem do pórtico.
 
@@ -404,10 +406,38 @@ O prédio laranja deixou de ser uma caixa maciça: tem piso, quatro paredes e um
 - **Cores:** mobília e roupas em tons apagados, como o resto da usina.
 - O interior vem fechado por padrão, para não mudar a vista geral.
 
+### 12.6.2 Treetech (segunda empresa, com o PC do RabbitMQ)
+
+Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 9,5), com grama própria de 26 × 26 e base de concreto de 16 × 16 na mesma altura da usina, e um meio-fio verde-claro. A base fica a cerca de 2,6 unidades do chão da cidade, ao lado das torres de transmissão.
+
+- **Nome:** uma placa em pórtico na entrada, com o nome **Treetech em verde** e uma pequena árvore, legível dos dois lados. O verde é o único tom forte da empresa; o prédio é claro e neutro.
+- **Prédio:** 10 × 6 e 4 unidades de altura, com piso, paredes, janelas, porta e telhado com um aparelho de ar-condicionado. Abre e fecha como o escritório da usina: o clique no prédio alterna o telhado, e as paredes baixam a 30% da altura quando ele abre.
+- **Interior:** uma mesa com monitor, teclado e cadeira, e ao lado a **torre do servidor RabbitMQ**, com uma etiqueta "RabbitMQ" e um LED verde. A tela do monitor mostra "Management", "RabbitMQ", "broker porta 5672" e "online".
+- **Câmera:** o preset **Treetech** abre o telhado e mostra o interior. A Visão Geral foi afastada para enquadrar a nova empresa.
+- **Ligação com o escritório da usina:** ver a seção 12.6.3.
+
+### 12.6.3 Rede simulada: PCs do escritório e RabbitMQ da Treetech
+
+Os 3 PCs do escritório da usina estão ligados ao servidor RabbitMQ da Treetech por cabos, e as mensagens aparecem como pacotes viajando por eles. Os dados são **simulados no navegador**; nada fala com um RabbitMQ real.
+
+| RabbitMQ | No 3D |
+|---|---|
+| PC produtor (2 deles) | Cabo que sai da torre do PC; os pacotes laranja (mensagens) viajam do PC para o servidor |
+| PC consumidor (o terceiro) | Cabo por onde os pacotes laranja vêm do servidor para o PC |
+| Conexão | O cabo cinza-escuro, com um por PC |
+| Ack | Pacote verde que volta pelo mesmo cabo: do servidor para o produtor, e do consumidor para o servidor |
+| Fila | Tubo de vidro com a etiqueta "Fila", ao lado da Treetech; a pilha de caixas laranja dentro dele é a profundidade (até 7 visíveis) |
+| Servidor | A torre dentro da Treetech; o LED pisca em branco a cada pacote que chega |
+
+- **Caminho dos cabos:** saem da torre de cada PC, correm rente ao chão até a parede leste do escritório, atravessam a parede, seguem para leste por uma faixa de grama entre a usina e a cidade e depois descem para o sul até a parede norte da Treetech, onde chegam à parte de trás da torre do servidor. Os prédios altos da usina ficam colados ao sul do escritório, por isso os cabos saem pelo lado leste. Os três cabos correm em paralelo, aninhados para não se cruzarem, e têm cerca de 35 unidades.
+- **Simulação:** cada produtor envia uma mensagem a cada 3,5 a 6,5 s. Ao chegar, a mensagem entra na fila e o servidor devolve um ack. O consumidor retira uma mensagem da fila a cada 2,5 s (ou espera 0,5 s se a fila está vazia) e devolve um ack ao receber. Os pacotes andam a 6 unidades por segundo.
+- **Câmera:** o preset **Rede** enquadra o trajeto dos cabos e a fila.
+- **Fora do que existe:** o exchange (roteamento por routing key) não tem representação própria, só uma fila. Não há dados reais, painel de métricas nem simulação de falha (broker caído, consumidor lento).
+
 ### 12.7 Câmera, luz e sombras
 
 - Câmera em perspectiva (FOV 40) com `OrbitControls`, distância entre 5 e 220 e sem passar do chão.
-- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
+- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Treetech** (abre o telhado da segunda empresa), **Rede** (cabos e fila do RabbitMQ), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
 - Sol com sombras em um quadro de ±80 e mapa de 4096, para a cena inteira ter sombra. Isso deixa a sombra da subestação menos nítida que no código original.
 
 ### 12.8 Paleta
