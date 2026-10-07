@@ -2,10 +2,12 @@
 
 - **Data:** 2026-10-07
 - **Parte:** 1 (ver [roadmap](../../roadmap.md))
-- **Status:** Revisões 1 e 2 (referências visuais) implementadas, aguardando revisão.
-- **Revisão 3:** o usuário pediu para usar exatamente o código HTML dele no 3D. Ele é a página principal (`index.html`) e não segue esta spec: usa Three.js r128 e React 18 por CDN, câmera em perspectiva e painéis de telemetria. Esta spec passa a descrever só a versão em R3F, mantida em `r3f.html`.
+- **Status:** Revisões 1 e 2 (versão em R3F) e revisão 3 (cena principal em HTML único) implementadas, aguardando revisão.
+- **Revisão 3:** o usuário pediu para usar o código HTML dele no 3D. Ele é a página principal (`index.html`), com a cidade, as torres e a usina ao lado da subestação.
 - **Planos:** [revisão 1, implementada](../plans/2026-10-07-parte-1-patio-3d.md) e [revisão 2, referências visuais](../plans/2026-10-07-parte-1-revisao-visual.md)
 - **Repositório:** `fluxograma3d`
+
+> **Qual versão a spec descreve:** as seções 1 a 11 descrevem a versão em R3F (`r3f.html`, código em `src/`), que não é mais a página principal. A cena principal atual (`index.html`) é descrita na **seção 12**.
 
 > Os itens marcados com **[PREMISSA]** ainda não foram confirmados. Confirme ou corrija cada um antes de seguir para o plano de implementação.
 
@@ -327,3 +329,91 @@ Câmera **ortográfica** no ângulo isométrico das referências:
 - Quatro papéis de pessoas, 6 a 8 no total.
 - Contorno nos equipamentos grandes, sujeito ao teste de desempenho no celular.
 - Pátio de cerca de 60 m × 40 m.
+
+---
+
+## 12. Revisão 3: cena principal em HTML único (`index.html`)
+
+Esta seção descreve a cena que abre na página principal. Ela parte do código HTML fornecido pelo usuário (a subestação) e recebeu acréscimos pedidos depois. A versão em R3F das seções 1 a 11 continua em `r3f.html` e não é mantida junto com esta.
+
+### 12.1 Stack e execução
+
+- Página única, sem build próprio para a cena: React 18 (UMD), Babel standalone, Tailwind CDN, Three.js r128 e `OrbitControls`, todos carregados por CDN. **A página precisa de internet para abrir.**
+- O código da cena é vanilla Three.js dentro de um `useEffect` de um componente React. A interface (cabeçalho, presets de câmera, modos de render, carga do transformador, alarmes) é a do código do usuário.
+- O Vite serve `index.html` e `r3f.html`; o build compila as duas páginas.
+- Não há testes automatizados para esta cena. A verificação é visual, com capturas do Chrome headless e leitura do console.
+
+### 12.2 O que veio do usuário e o que foi acrescentado
+
+| Elemento | Origem |
+|---|---|
+| Subestação (transformador de 3 buchas, pórtico de treliça, 2 disjuntores, armários, para-raios, cabos, cerca amarela, placa de concreto, grama) | Código do usuário. As cores não mudam |
+| Interface, modos de render (padrão, raio-X, termografia, noturno), carga do transformador, áudio de 60 Hz, alarmes | Código do usuário |
+| Cidade, torres de transmissão e cabos, em torno de postes e casas | Código do usuário, enviado depois (somente a parte 3D; a subestação em caixa dele não foi usada) |
+| Usina elétrica (prédios, chaminés, ventoinhas, tambores, fumaça) | Código do usuário, enviado depois (somente a parte 3D; o pequeno pátio de transformadores dela foi removido a pedido) |
+| 2 pessoas andando | Acréscimo |
+| Portão na cerca leste | Acréscimo |
+| Cores mais apagadas na cidade e na usina | Ajuste pedido |
+
+### 12.3 Disposição na cena
+
+Unidade em metros nominais; Y para cima; a subestação fica na origem.
+
+| Elemento | Posição e tamanho (mundo) |
+|---|---|
+| Subestação | Origem. Placa de grama 26 × 26, placa de concreto 16 × 16 (topo em y = 0,3), cerca em ±7,3 |
+| Usina | Centro em (16,4; 0,3; 0), girada meia volta. Base de 16 × 16 com borda de 16,8, **encostada** na placa de concreto da subestação e na mesma altura. Grama própria de 26 × 26 sob ela |
+| Torres de transmissão | Em (34; −4,5) e (44; −4,5), alinhadas com o pórtico da subestação |
+| Cidade | Chão de 34 × 34 com centro em (54; −18,5), duas ruas em cruz, 8 casas, 8 postes, árvores |
+| Faixa de grama de ligação | De x = 12,5 a x = 72 e de z = −37 a z = 13, abaixo da cidade e das torres |
+
+A usina está girada para as chaminés e os prédios altos ficarem do lado sul, longe dos cabos que saem do pórtico.
+
+### 12.4 Cabos e energia
+
+- Três cabos saem dos isoladores do pórtico da subestação, passam pelas duas torres e chegam ao primeiro poste da cidade. Dali, cada poste liga um cabo à sua casa.
+- Pulsos amarelos correm pelos cabos principais.
+- O estado do disjuntor controla a cidade: com o disjuntor aberto, os pulsos somem, os cabos ficam cinza e as janelas das casas apagam. O estado é lido por uma referência (`breakerClosedRef`), porque o `useEffect` da cena roda uma só vez.
+
+### 12.5 Usina
+
+- Prédio principal alto com duas chaminés, prédio intermediário com 4 ventoinhas, prédio laranja baixo com 2 chaminés listradas, 3 ventoinhas e um duto, e 4 tambores de óleo.
+- Animação: ventoinhas giram (0,25 rad por quadro) e há fumaça subindo das 4 chaminés (6 partículas por chaminé).
+- As ventoinhas ficam na altura do teto de cada prédio (o código original usava sempre a altura do prédio intermediário, o que deixava as do prédio laranja flutuando).
+- Não há pátio de transformadores nem luz de faísca dentro da usina.
+
+### 12.6 Pessoas
+
+Duas pessoas, com capacete e colete (laranja e amarelo), andando continuamente a 1,3 e 1,1 unidade por segundo. Cada uma percorre um circuito fechado, em sentidos opostos, que passa pelo portão:
+
+1. Dá a volta pelo pátio da subestação, por dentro da cerca.
+2. Sai pelo **portão da cerca leste** (vão de 2,8 unidades, centrado em z = 0,35, no corredor entre o arrestador e o disjuntor).
+3. Contorna os prédios da usina por corredores livres (pontos do circuito: (14,2; 0,35), (14,2; −6,5), (23,2; −6,5), (23,2; 6,8), (11; 6,8), (11; 0,35)).
+4. Volta pelo mesmo portão.
+
+As rotas são escritas à mão. Não há desvio de obstáculos nem detecção de colisão, e as duas pessoas dividem o corredor do portão e se atravessam ali. A passada é sincronizada com a distância percorrida.
+
+### 12.7 Câmera, luz e sombras
+
+- Câmera em perspectiva (FOV 40) com `OrbitControls`, distância entre 5 e 220 e sem passar do chão.
+- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
+- Sol com sombras em um quadro de ±80 e mapa de 4096, para a cena inteira ter sombra. Isso deixa a sombra da subestação menos nítida que no código original.
+
+### 12.8 Paleta
+
+- **Subestação:** inalterada.
+- **Cidade e torres:** tons acinzentados. Telhados em tijolo, azul-aço, areia, verde-sálvia, lilás, rosa antigo e ardósia; terrenos e árvores em verde-sálvia; isoladores marrons; cabos verdes e azuis acinzentados; pulsos e janelas em amarelo-creme.
+- **Usina:** terracota apagado no prédio laranja, vinho acinzentado nas chaminés e no telhado, areia nos anéis, nas ventoinhas e nos tambores. A faixa de perigo da base usa os mesmos tons.
+
+### 12.9 Limitações conhecidas (herdadas do código do usuário)
+
+- O `useEffect` da cena tem lista de dependências vazia, então os botões de disjuntor e de carga não atualizam o LED dos disjuntores nem as partículas de cabo da subestação. Só a cidade reage ao disjuntor (pelo acréscimo da seção 12.4).
+- Os modos de render (raio-X, termografia) percorrem todas as malhas da cena, inclusive a cidade, a usina e as pessoas, e o modo normal não restaura as cores originais.
+- O clique para inspecionar componentes só alcança o grupo da subestação. Cidade, torres e usina não são clicáveis.
+- O desempenho (fps) não foi medido em GPU real nem em celular.
+
+### 12.10 Pontos em aberto
+
+- As quatro imagens de referência do iStock continuam em `public/` e seriam publicadas junto com o site. Elas deveriam ir para `docs/referencias/`.
+- A versão em R3F (`r3f.html`, `src/`) continua no repositório, mas não é mantida. Duas correções que o revisor apontou nela ficaram pendentes: o gesto de pinça no celular e os condutores do para-raios que atravessam a bucha vizinha.
+- O portão da cerca leste existe, mas o resto da cerca separa a subestação da usina. Se as duas devem ser um pátio só, o trecho leste da cerca pode ser removido.
