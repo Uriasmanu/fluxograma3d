@@ -242,7 +242,7 @@
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
 
         // Vista Isométrica inicial idêntica à foto
-        camera.position.set(84, 58, 56);
+        camera.position.set(102, 70, 69);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -261,7 +261,7 @@
         controls.maxPolarAngle = Math.PI / 2 - 0.02; // Não atravessar o chão
         controls.minDistance = 5;
         controls.maxDistance = 220;
-        controls.target.set(22, 0, -8);
+        controls.target.set(28, 0, -8);
         controlsRef.current = controls;
 
         // Iluminação Ambientes e Sol
@@ -795,7 +795,7 @@
 
         // 10. CIDADE E TORRES DE TRANSMISSÃO AO LADO DA SUBESTAÇÃO
         const cityWorld = new THREE.Group();
-        cityWorld.position.set(32, 0, -16.5);
+        cityWorld.position.set(46, 0, -16.5);
         scene.add(cityWorld);
 
         const matLatticeSteel = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.15 });
@@ -816,8 +816,8 @@
         const cityWindows = [];
 
         // Grama de ligação entre a placa da subestação e a cidade
-        const bridgeGround = new THREE.Mesh(new THREE.BoxGeometry(45.5, 0.4, 50), matGrass);
-        bridgeGround.position.set(3.25, -0.22, 4.5);
+        const bridgeGround = new THREE.Mesh(new THREE.BoxGeometry(59.5, 0.4, 50), matGrass);
+        bridgeGround.position.set(-3.75, -0.22, 4.5);
         bridgeGround.receiveShadow = true;
         cityWorld.add(bridgeGround);
 
@@ -929,7 +929,7 @@
 
         // Pórtico da subestação -> Torre 1 (coordenadas locais da cidade: mundo - deslocamento)
         [-2, 0, 2].forEach((gx, i) => {
-          const gantryHook = new THREE.Vector3(gx - 32, 6.25, 12);
+          const gantryHook = new THREE.Vector3(gx - 46, 6.25, 12);
           mainWireCurves.push(createCatenaryWire(gantryHook, pylon1.hooks[i], 1.2));
         });
 
@@ -1089,7 +1089,8 @@
 
         // 11. USINA ELÉTRICA AO LADO DA SUBESTAÇÃO (modelo enviado pelo usuário)
         const plantWorld = new THREE.Group();
-        plantWorld.position.set(24, 0, 14);
+        plantWorld.position.set(16.4, 0.3, 0);
+        plantWorld.rotation.y = Math.PI;
         scene.add(plantWorld);
 
         const plantFans = [];
@@ -1157,7 +1158,7 @@
 
           // Grama sob a usina, encostando na placa da subestação
           const plantGrass = new THREE.Mesh(new THREE.BoxGeometry(26, 0.4, 26), matGrass);
-          plantGrass.position.set(0, -0.21, 0);
+          plantGrass.position.set(0, -0.51, 0);
           plantGrass.receiveShadow = true;
           plantWorld.add(plantGrass);
 
@@ -1534,16 +1535,16 @@
 
         switch (preset) {
           case 'overview':
-            controls.object.position.set(84, 58, 56);
-            controls.target.set(22, 0, -8);
+            controls.object.position.set(102, 70, 69);
+            controls.target.set(28, 0, -8);
             break;
           case 'plant':
-            controls.object.position.set(46, 21, 36);
-            controls.target.set(24, 3, 14);
+            controls.object.position.set(40, 22, 28);
+            controls.target.set(16.4, 3, 0);
             break;
           case 'city':
-            controls.object.position.set(66, 30, 16);
-            controls.target.set(40, 2, -18);
+            controls.object.position.set(80, 32, 14);
+            controls.target.set(54, 2, -18.5);
             break;
           case 'iso':
             controls.object.position.set(22, 18, 22);
