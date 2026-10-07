@@ -4,7 +4,7 @@ Visão geral das partes do projeto `fluxograma3d`. Atualize a tabela sempre que 
 
 | Parte | Tema | Spec | Plano | Status |
 |---|---|---|---|---|
-| 1 | Pátio de subestação 3D: cena estilizada, vista de cima, com pessoas e sala de monitoramento | [spec](superpowers/specs/2026-10-07-parte-1-patio-3d-design.md) | [plano](superpowers/plans/2026-10-07-parte-1-patio-3d.md) | Implementada, aguardando revisão |
+| 1 | Pátio de subestação 3D: cena estilizada, vista de cima, com pessoas e sala de monitoramento | [spec](superpowers/specs/2026-10-07-parte-1-patio-3d-design.md) | [plano 1](superpowers/plans/2026-10-07-parte-1-patio-3d.md), [plano 2: referências visuais](superpowers/plans/2026-10-07-parte-1-revisao-visual.md) | Planos 1 e 2 implementados. A página principal (`index.html`) agora é o código HTML fornecido pelo usuário, sem alterações; o app em R3F continua em `r3f.html` |
 | 2 em diante | A definir | — | — | Aguardando a descrição do restante da ideia |
 
 ## Parte 1: pontos que as próximas partes podem reaproveitar

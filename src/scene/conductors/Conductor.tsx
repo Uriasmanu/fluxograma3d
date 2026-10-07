@@ -25,5 +25,5 @@ export function Conductor({ from, to, sag = DEFAULT_SAG }: ConductorProps) {
   useEffect(() => () => geometry?.dispose(), [geometry]);
 
   if (!geometry) return null;
-  return <mesh geometry={geometry} material={MATERIALS.aluminum} castShadow />;
+  return <mesh geometry={geometry} material={MATERIALS.cable} castShadow />;
 }

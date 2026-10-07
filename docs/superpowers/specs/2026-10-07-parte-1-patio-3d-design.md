@@ -2,8 +2,9 @@
 
 - **Data:** 2026-10-07
 - **Parte:** 1 (ver [roadmap](../../roadmap.md))
-- **Status:** Implementada, aguardando revisão
-- **Plano:** [2026-10-07-parte-1-patio-3d.md](../plans/2026-10-07-parte-1-patio-3d.md)
+- **Status:** Revisões 1 e 2 (referências visuais) implementadas, aguardando revisão.
+- **Revisão 3:** o usuário pediu para usar exatamente o código HTML dele no 3D. Ele é a página principal (`index.html`) e não segue esta spec: usa Three.js r128 e React 18 por CDN, câmera em perspectiva e painéis de telemetria. Esta spec passa a descrever só a versão em R3F, mantida em `r3f.html`.
+- **Planos:** [revisão 1, implementada](../plans/2026-10-07-parte-1-patio-3d.md) e [revisão 2, referências visuais](../plans/2026-10-07-parte-1-revisao-visual.md)
 - **Repositório:** `fluxograma3d`
 
 > Os itens marcados com **[PREMISSA]** ainda não foram confirmados. Confirme ou corrija cada um antes de seguir para o plano de implementação.
@@ -14,15 +15,24 @@
 
 Construir uma cena 3D navegável no navegador com o pátio de uma subestação elétrica, centrada nos transformadores de potência, usando React Three Fiber.
 
-O propósito é **visualização e apresentação** (portfólio, demo, apresentação a cliente). O visual é **estilizado, com aparência de jogo de celular**, visto **de cima**, como em jogos de construção de base.
+O propósito é **visualização e apresentação** (portfólio, demo, apresentação a cliente). O visual é **estilizado, com aparência de jogo de celular**, visto **de cima**, em **isométrica**, como um diorama sobre fundo limpo.
+
+### Referências visuais
+
+Quatro ilustrações isométricas em `public/` guiam a forma e as cores dos equipamentos (arquivos `istockphoto-*-612x612.jpg`). Elas são só referência: não fazem parte do produto.
+
+- **`istockphoto-1463961464`:** pátio completo em diorama, com cerca amarela, pórtico de treliça e transformadores de três buchas. Referência principal.
+- **`istockphoto-1463801943`:** catálogo dos equipamentos isolados (transformador, TC, TP, seccionadora, armários, transformador em caixa).
+- **`istockphoto-1463961466`:** corte de um pátio com muro de tijolos, que ajuda a ler a disposição dos equipamentos.
+- **`istockphoto-537372312`:** usina, torres e casas. Pertence a uma parte futura (ver [roadmap](../../roadmap.md)), não à Parte 1.
 
 ### Critérios de sucesso
 
 1. A subestação é reconhecível de relance: transformadores de potência, pórticos, barramentos e equipamentos de manobra com formas simplificadas, mas inconfundíveis.
 2. A cena tem vida: pessoas se movem pelo pátio e trabalham, e a sala de monitoramento no prédio administrativo mostra operadores diante das telas.
-3. O visual é coerente e agradável: paleta saturada e harmônica, formas arredondadas e "gordinhas", sombras suaves, sem texturas fotográficas.
-4. A câmera fica sempre acima do pátio, em vista aérea inclinada, e nunca desce ao nível do chão.
-5. A navegação é fluida com mouse e com toque (arrastar, pinça para zoom, giro).
+3. O visual é coerente e agradável e se parece com as referências: equipamentos cinza-azulados com isoladores marrons, cerca amarela, formas simplificadas, sombras suaves, sem texturas fotográficas.
+4. A câmera é isométrica, com inclinação fixa, e nunca desce ao nível do chão.
+5. A navegação é fluida com mouse e com toque (arrastar, pinça para zoom, giro em volta).
 6. Existe um modo de **tour de câmera** com pontos de vista pré-definidos (pátio, transformadores, sala de monitoramento), para conduzir uma apresentação.
 7. Roda a 60 fps em um notebook comum e em celular intermediário, com as pessoas animadas.
 
@@ -33,13 +43,13 @@ O propósito é **visualização e apresentação** (portfólio, demo, apresenta
 ### Dentro do escopo (v1)
 
 - Um pátio com **1 vão de entrada de linha**, **2 transformadores de potência** e **1 barramento** de saída, em arranjo de barra simples, classe 138/13,8 kV. **[PREMISSA]** Arranjo e classe só definem proporções e a ordem dos equipamentos no vão.
-- Equipamentos procedurais estilizados (geometrias do three.js), com proporções exageradas e poucos detalhes.
+- Equipamentos procedurais estilizados (geometrias do three.js), com as formas das referências: transformador com três buchas de AT, equipamentos trifásicos em três colunas, pórtico de treliça com cadeias de isoladores e armários de comando.
 - Layout do pátio definido em **dados** (arquivo TypeScript), não espalhado em JSX.
 - Condutores curvos ligando os terminais dos equipamentos.
 - **Prédio administrativo** ao lado do pátio, com a **sala de monitoramento** no interior (mesas, telas estáticas, painel mural, operadores sentados). O prédio aparece fechado, com telhado; o telhado fica transparente para revelar o interior (ver seção 4).
 - **Pessoas trabalhando**: **[PREMISSA]** 6 a 8 personagens estilizados (capacete, colete), com animações em loop: caminhar por rotas pelo pátio, inspecionar um equipamento, agachar para uma manutenção, e operadores sentados na sala de monitoramento.
-- Ambiente: piso de brita estilizado, cerca perimetral, grama ao redor, algumas árvores e iluminação diurna com sombras suaves.
-- Navegação aérea (orbit limitado, pan e zoom) e tour de câmera por pontos de vista.
+- Ambiente em **diorama**: uma placa retangular com espessura (camada de grama sobre solo) sobre fundo claro, piso de concreto na área do pátio, cerca amarela com painéis translúcidos, algumas árvores sobre a placa e iluminação diurna com sombras suaves.
+- Câmera isométrica com rotação em volta, zoom e pan limitado, e tour de câmera por pontos de vista.
 
 ### Fora do escopo (v1)
 
@@ -59,7 +69,7 @@ O propósito é **visualização e apresentação** (portfólio, demo, apresenta
 | Build | Vite | Setup rápido, HMR, padrão do ecossistema R3F |
 | Linguagem | TypeScript | Tipar o modelo de dados do pátio |
 | UI | React 18+ | Requisito do R3F |
-| 3D | `@react-three/fiber` + `three` | Requisito do projeto |
+| 3D | `@react-three/fiber` + `three` (câmera ortográfica) | Requisito do projeto; a ortográfica dá a isométrica das referências |
 | Helpers 3D | `@react-three/drei` | CameraControls, Instances, Outlines, ContactShadows |
 | Testes | Vitest | Lógica de dados e geometria dos condutores |
 
@@ -73,19 +83,22 @@ Cada tipo de equipamento é um componente React isolado, com props de posição/
 
 | Componente | Representação estilizada |
 |---|---|
-| `PowerTransformer` | Tanque em caixa de cantos arredondados, radiadores laterais como poucas placas grossas, buchas de AT/BT como cilindros com 3 a 4 discos grossos, conservador no topo |
-| `CircuitBreaker` | Base baixa, duas colunas grossas com discos, caixa de comando |
-| `Disconnector` (seccionadora) | Duas colunas curtas com lâmina horizontal |
-| `CurrentTransformer` (TC) | Coluna com cabeçote arredondado |
-| `PotentialTransformer` (TP) | Coluna com base maior |
-| `SurgeArrester` (para-raios) | Coluna fina com discos e ponta |
-| `Gantry` (pórtico) | Duas colunas e uma viga, perfis grossos, sem treliça detalhada |
-| `Busbar` (barramento) | Tubos grossos sobre isoladores de suporte |
-| `Conductor` | Curva suave entre dois terminais, tubo fino |
+| `PowerTransformer` | Tanque em caixa de cantos arredondados, **três buchas de AT** em fileira (altas) e **três de BT** (baixas), radiadores como **fileira de aletas** em cada lado, conservador no topo apoiado no tanque e caixa de comando na lateral |
+| `CircuitBreaker` | **Trifásico**: base de aço e, para cada fase, duas colunas grossas com discos; caixa de comando ao lado |
+| `Disconnector` (seccionadora) | **Trifásico**: para cada fase, duas colunas com lâmina horizontal, sobre um quadro de aço |
+| `CurrentTransformer` (TC) | **Trifásico**: três colunas com cabeçote arredondado |
+| `PotentialTransformer` (TP) | **Trifásico**: três colunas com base maior e tampa |
+| `SurgeArrester` (para-raios) | **Trifásico**: três colunas finas com discos |
+| `Gantry` (pórtico) | **Treliça** (duas colunas e uma viga de montantes, travessas e diagonais) com **cadeias de isoladores** penduradas na viga |
+| `Busbar` (barramento) | Tubo grosso sobre isoladores de suporte |
+| `ControlCabinet` (armário de comando) | Armário alto de cor clara sobre base, com porta e uma placa de aviso |
+| `Conductor` | Curva suave entre dois terminais, tubo fino e escuro |
 
-Componentes de ambiente: `Ground` (brita e grama), `Fence` (cerca), `Tree`, `Lighting`.
+Componentes de ambiente: `Ground` (diorama: grama, solo e piso de concreto), `Fence` (cerca amarela com painéis), `Tree`, `Lighting`.
 
 O componente `Insulator` (coluna com discos) é reutilizado por quase todos os equipamentos.
+
+**Representação em linha única:** os condutores continuam sendo um por conexão, ligados ao terminal da fase central de cada equipamento. Os equipamentos trifásicos são só visuais; o modelo de dados não muda.
 
 ### Prédio administrativo e sala de monitoramento
 
@@ -125,10 +138,11 @@ As rotas dos caminhantes são escritas à mão nos corredores livres do pátio. 
 
 Uma biblioteca central (`materials.ts`) com instâncias compartilhadas, todas em cor chapada, sem textura:
 
-- `MeshToonMaterial` ou `MeshStandardMaterial` com `flatShading` e rugosidade alta. **[PREMISSA]** Decidir entre os dois com um teste visual na primeira etapa.
-- Paleta curta e saturada: azul ou verde-azulado para transformadores, laranja ou amarelo para destaques, cinza claro para estruturas, bege ou marrom para isoladores, verde para a grama.
+- `MeshStandardMaterial` com `flatShading` e rugosidade alta.
+- Paleta das referências: cinza-azulado claro para transformadores, estruturas e armários, marrom-escuro para isoladores, amarelo para a cerca (painéis translúcidos em amarelo-alaranjado), cinza-escuro para os condutores, concreto claro no piso do pátio, verde na grama, tom terroso no solo da placa, laranja só para destaques pequenos.
+- Fundo da cena em cor clara chapada (quase branca), sem horizonte.
 - **[PREMISSA]** Contorno escuro fino nos equipamentos para reforçar o estilo de desenho animado.
-  - O `Outlines` do drei duplica a geometria (casco invertido) e não combina com `<Instances>`. Por isso o contorno entra só em peças grandes e únicas (transformadores, prédio, pórticos), não em isoladores, cerca ou árvores.
+  - O `Outlines` do drei duplica a geometria (casco invertido) e não combina com `<Instances>`. Por isso o contorno entra só em peças grandes e únicas (tanque do transformador e paredes do prédio), não em isoladores, treliças, cerca ou árvores.
   - É desligável por uma flag; se o celular não segurar 60 fps, sai da v1.
 
 ---
@@ -142,6 +156,8 @@ src/
   data/
     yard.ts               # layout do pátio: equipamentos + conexões
     terminals.ts          # terminais de cada tipo de equipamento (coordenadas locais)
+    trees.ts              # posições das árvores sobre a placa
+    cameraLimits.ts       # inclinação isométrica, limites de zoom e área de pan
     viewpoints.ts         # pontos de vista do tour
     types.ts              # tipos do modelo de dados
   scene/
@@ -167,7 +183,7 @@ src/
 ```ts
 type EquipmentType =
   | 'transformer' | 'breaker' | 'disconnector'
-  | 'ct' | 'pt' | 'arrester' | 'gantry' | 'busbar';
+  | 'ct' | 'pt' | 'arrester' | 'gantry' | 'busbar' | 'cabinet';
 
 interface Equipment {
   id: string;
@@ -209,6 +225,7 @@ interface Viewpoint {
   label: string;                            // texto em pt-BR
   position: [number, number, number];
   target: [number, number, number];
+  span: number;                             // largura da cena visível, em unidades (define o zoom)
   openRoof?: boolean;                       // true força o telhado aberto ao chegar
 }
 ```
@@ -235,16 +252,16 @@ Os **terminais** de cada tipo (ex.: `hv1`, `lv1`) ficam em `terminals.ts`, como 
 
 ---
 
-## 6. Câmera (vista de cima)
+## 6. Câmera (isométrica)
 
-**[PREMISSA]** Vista aérea em 3/4, estilo jogo de construção de base:
+Câmera **ortográfica** no ângulo isométrico das referências:
 
-- Câmera em perspectiva com FOV baixo (cerca de 30° a 40°), o que dá uma leitura próxima da isométrica.
-- Ângulo de inclinação a partir da vertical limitado a uma faixa (por exemplo, 25° a 60°), então nunca chega perto do horizonte nem do nível do chão.
+- Inclinação **fixa** de cerca de 54,7° a partir da vertical (35,3° de elevação), travada nos controles. A câmera nunca desce ao nível do chão.
 - Rotação horizontal livre em volta do pátio.
-- Pan limitado aos limites do pátio, para o usuário não "se perder" no vazio.
-- Zoom com distância mínima e máxima.
-- Vista inicial: 3/4 mostrando o pátio inteiro, com margem.
+- Zoom limitado por uma largura visível mínima e máxima (`span`, em unidades da cena), convertida em zoom pela largura da tela. Isso mantém o enquadramento em telas estreitas.
+- Pan limitado à área da placa, para o usuário não "se perder" no vazio.
+- Vista inicial: o diorama inteiro, com margem, vindo do canto sudoeste.
+- Todos os pontos de vista do tour usam a mesma inclinação e o mesmo canto; mudam o alvo e o `span`.
 - Toque: um dedo arrasta (pan), dois dedos fazem pinça (zoom) e giro.
 
 ---
@@ -253,8 +270,8 @@ Os **terminais** de cada tipo (ex.: `hv1`, `lv1`) ficam em `terminals.ts`, como 
 
 - Uma luz direcional (sol) com sombras suaves, mais uma `hemisphereLight` para encher as sombras com cor.
 - Shadow map de tamanho moderado, ajustado ao tamanho do pátio.
-- Fundo de cor chapada ou gradiente simples, em vez de HDRI.
-- Névoa leve para suavizar a borda do mapa.
+- Fundo de cor clara chapada, em vez de HDRI.
+- Sem névoa: o diorama tem borda definida e fundo limpo.
 
 ---
 
@@ -264,7 +281,8 @@ Os **terminais** de cada tipo (ex.: `hv1`, `lv1`) ficam em `terminals.ts`, como 
 - `<Instances>` do drei para itens muito repetidos (discos de isoladores, placas de radiador, mourões da cerca, árvores).
 - Pessoas com geometria e material compartilhados; só a cor do colete varia. Poucos polígonos por personagem.
 - O material do `Roof` só é transparente durante o fade; fechado, volta a ser opaco para evitar problemas de ordenação.
-- Sombras apenas da luz principal.
+- Sombras apenas da luz principal. Os painéis translúcidos da cerca não projetam sombra.
+- Os equipamentos trifásicos e as treliças aumentam o número de malhas. Se o fps cair, o passo seguinte é trocar as colunas e as barras das treliças por `<Instances>`.
 - `dpr` limitado (por exemplo, máximo 2) para economizar GPU em telas de alta densidade.
 - `frameloop="always"`, porque as pessoas estão sempre em movimento.
 - Animação baseada em tempo (`delta`), nunca em número de frames.
@@ -297,10 +315,14 @@ Os **terminais** de cada tipo (ex.: `hv1`, `lv1`) ficam em `terminals.ts`, como 
 - Tour de câmera na v1.
 - Telas da sala de monitoramento estáticas.
 - Telhado do prédio que some, em vez de corte permanente.
+- Câmera isométrica fixa (ortográfica), no lugar da perspectiva 3/4.
+- Base em diorama (placa com espessura sobre fundo limpo), no lugar do terreno aberto.
+- Paleta cinza-azulada com cerca amarela, como nas referências.
+- Equipamentos com as formas das referências (três buchas, trifásicos, treliça, armários).
 
 ### Ainda como premissa (corrija se discordar)
 
-- Vista aérea em 3/4, em vez de planta a 90°.
+- O pátio cabe numa placa de cerca de 96 m × 60 m, com o prédio sobre ela.
 - Barra simples e classe 138/13,8 kV.
 - Quatro papéis de pessoas, 6 a 8 no total.
 - Contorno nos equipamentos grandes, sujeito ao teste de desempenho no celular.

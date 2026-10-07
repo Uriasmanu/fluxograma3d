@@ -1,21 +1,22 @@
 import type { Vec3 } from './types';
 
-const degrees = (value: number) => (value * Math.PI) / 180;
-
 interface CameraLimits {
-  fov: number;
-  minPolar: number;
-  maxPolar: number;
-  minDistance: number;
-  maxDistance: number;
+  polar: number;
+  minSpan: number;
+  maxSpan: number;
   bounds: { min: Vec3; max: Vec3 };
 }
 
+export const ISO_POLAR = Math.acos(1 / Math.sqrt(3));
+
 export const CAMERA_LIMITS: CameraLimits = {
-  fov: 35,
-  minPolar: degrees(25),
-  maxPolar: degrees(60),
-  minDistance: 10,
-  maxDistance: 130,
-  bounds: { min: [-45, 0, -28], max: [45, 0, 28] },
+  polar: ISO_POLAR,
+  minSpan: 24,
+  maxSpan: 130,
+  bounds: { min: [-48, 0, -30], max: [48, 0, 30] },
 };
+
+export function zoomForSpan(span: number, viewportWidth: number): number {
+  const clamped = Math.min(Math.max(span, CAMERA_LIMITS.minSpan), CAMERA_LIMITS.maxSpan);
+  return viewportWidth / clamped;
+}

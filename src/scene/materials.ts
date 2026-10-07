@@ -1,15 +1,19 @@
 import { MeshStandardMaterial } from 'three';
 
 export const PALETTE = {
-  sky: '#bfe3ff',
-  transformer: '#2a9bb8',
+  background: '#f3f6fa',
+  transformer: '#a9bccd',
   accent: '#f5a623',
-  steel: '#c3cbd4',
-  porcelain: '#b98a5e',
+  steel: '#c4cfda',
+  porcelain: '#8a4f2f',
   aluminum: '#e4e9ee',
-  gravel: '#b7ad9a',
-  grass: '#7bc65a',
-  fence: '#8a949e',
+  cabinet: '#dfe6ec',
+  cable: '#4b5663',
+  gravel: '#c9c3b8',
+  grass: '#8bc34a',
+  soil: '#8c8472',
+  fence: '#f2b705',
+  fencePanel: '#ffc83d',
   trunk: '#8b5a2b',
   leaves: '#4caf50',
   wall: '#f1e6d3',
@@ -35,6 +39,9 @@ export const MATERIALS = Object.fromEntries(
 
 MATERIALS.screenOn.emissive.set(PALETTE.screenOn);
 MATERIALS.screenOn.emissiveIntensity = 0.8;
+MATERIALS.fencePanel.transparent = true;
+MATERIALS.fencePanel.opacity = 0.3;
+MATERIALS.fencePanel.depthWrite = false;
 
 const vestCache = new Map<string, MeshStandardMaterial>();
 

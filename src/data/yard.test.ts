@@ -12,6 +12,10 @@ describe('YARD', () => {
     expect(result.validConnections).toHaveLength(YARD.connections.length);
   });
 
+  it('has at least two control cabinets', () => {
+    expect(YARD.equipment.filter((item) => item.type === 'cabinet').length).toBeGreaterThanOrEqual(2);
+  });
+
   it('has two power transformers', () => {
     expect(YARD.equipment.filter((item) => item.type === 'transformer')).toHaveLength(2);
   });

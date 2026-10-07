@@ -1,12 +1,1021 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Subestação 3D</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subestação Elétrica 3D - Gem3D Industrial</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- OrbitControls -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+      background-color: #0f172a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 4px;
+    }
+    .pulse-glow {
+      box-shadow: 0 0 15px rgba(234, 179, 8, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- ÍCONES SVG customizados para performance e independência ---
+    const Icons = {
+      Zap: () => (
+        <svg className="w-5 h-5 text-amber-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+      Shield: () => (
+        <svg className="w-5 h-5 text-emerald-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      ),
+      Camera: () => (
+        <svg className="w-5 h-5 text-sky-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+      ),
+      Activity: () => (
+        <svg className="w-5 h-5 text-rose-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+      Volume: ({ active }) => (
+        <svg className={`w-5 h-5 ${active ? 'text-amber-400' : 'text-slate-400'} inline`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={active ? "M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z" : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"} />
+        </svg>
+      ),
+      Eye: () => (
+        <svg className="w-5 h-5 text-indigo-400 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+      ),
+      AlertTriangle: () => (
+        <svg className="w-5 h-5 text-red-500 inline animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      )
+    };
+
+    // --- Componente Principal da Subestação ---
+    function SubstationApp() {
+      const [selectedComponent, setSelectedComponent] = useState(null);
+      const [viewMode, setViewMode] = useState('normal'); // 'normal', 'xray', 'thermal', 'night'
+      const [breakerClosed, setBreakerClosed] = useState(true);
+      const [loadLevel, setLoadLevel] = useState(78); // %
+      const [soundEnabled, setSoundEnabled] = useState(false);
+      const [alarms, setAlarms] = useState([]);
+
+      const audioCtxRef = useRef(null);
+      const humOscRef = useRef(null);
+      const humGainRef = useRef(null);
+      const sceneRef = useRef(null);
+      const controlsRef = useRef(null);
+      const componentMeshesRef = useRef({});
+      const particleSystemsRef = useRef([]);
+
+      // Dados dos Componentes para inspeção técnica
+      const componentData = {
+        transformer: {
+          title: "Transformador Principal de Potência (Trafo 01)",
+          voltage: "138 kV / 13.8 kV",
+          power: "50 MVA",
+          temp: `${Math.round(55 + (loadLevel * 0.25))} °C`,
+          status: breakerClosed ? "OPERACIONAL (EM CARGA)" : "DESENERGIZADO",
+          desc: "Unidade central rebaixadora de tensão de óleo mineral com conservador externo e conjunto de radiadores de refrigeração forçada."
+        },
+        gantry: {
+          title: "Pórtico Metálico e Barramento de Alta Tensão",
+          voltage: "138 kV AC",
+          power: `${Math.round(48 * (loadLevel/100))} MW`,
+          temp: "32 °C",
+          status: "ENERGIZADO (GRID)",
+          desc: "Estrutura treliçada em aço galvanizado para ancoragem de cabos condutores de chegada e isoladores de disco tipo suspensão."
+        },
+        breaker_1: {
+          title: "Disjuntor Principal a Gás SF6 - Baía AT",
+          voltage: "138 kV",
+          pressure: "6.2 bar (Gás SF6)",
+          status: breakerClosed ? "FECHADO (CONDUZINDO)" : "ABERTO (ISOLADO)",
+          temp: "38 °C",
+          desc: "Disjuntor de alta velocidade com câmara de extinção de arco por sopro de SF6 para proteção contra curto-circuitos."
+        },
+        breaker_2: {
+          title: "Conjunto de Disjuntores MT - Alimentadores",
+          voltage: "13.8 kV",
+          status: breakerClosed ? "FECHADO" : "ABERTO",
+          temp: "35 °C",
+          desc: "Módulos de interrupção em média tensão protegendo a saída dos circuitos de distribuição regional."
+        },
+        radiators: {
+          title: "Bateria de Radiadores e Refrigeração (ONAF)",
+          flow: `${Math.round(850 * (loadLevel/100))} L/min`,
+          fans: loadLevel > 60 ? "4 Ventoínhas ATIVAS" : "2 Ventoínhas ATIVAS",
+          temp: `${Math.round(42 + (loadLevel * 0.15))} °C`,
+          status: "EM OPERAÇÃO",
+          desc: "Trocadores de calor a óleo-ar para dissipação de perdas térmicas do núcleo do transformador."
+        },
+        cabinets: {
+          title: "Armários de Comando, Proteção e SCADA",
+          protocol: "IEC 61850 / DNP3",
+          plcStatus: "CPU OK - S7-1500",
+          temp: "26 °C",
+          status: "SISTEMA ONLINE",
+          desc: "Painéis metálicos IP65 contendo relés numéricos de proteção, controladores lógicos e RTU de automação."
+        },
+        arresters: {
+          title: "Conjunto de Para-Raios de Óxido Metálico (ZnO)",
+          mcov: "84 kV RMS",
+          dischargeCount: "03 Eventos",
+          status: "PROTEÇÃO ATIVA",
+          temp: "28 °C",
+          desc: "Dispositivos de proteção contra sobretensões atmosféricas e de manobra conectados ao barramento."
+        }
+      };
+
+      // Configuração de áudio (Hum de 60Hz da subestação)
+      useEffect(() => {
+        if (soundEnabled) {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(60, ctx.currentTime); // 60 Hz hum
+
+            // Sub-harmônico de 120Hz para realismo industrial
+            const osc2 = ctx.createOscillator();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(120, ctx.currentTime);
+
+            const gain2 = ctx.createGain();
+            gain2.gain.setValueAtTime(0.02, ctx.currentTime);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start();
+
+            gain.gain.setValueAtTime(breakerClosed ? 0.03 : 0.005, ctx.currentTime);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+
+            audioCtxRef.current = ctx;
+            humOscRef.current = osc;
+            humGainRef.current = gain;
+          } catch (e) {
+            console.warn("Audio Context error", e);
+          }
+        } else {
+          if (audioCtxRef.current) {
+            audioCtxRef.current.close();
+            audioCtxRef.current = null;
+          }
+        }
+        return () => {
+          if (audioCtxRef.current) {
+            audioCtxRef.current.close();
+          }
+        };
+      }, [soundEnabled]);
+
+      // Atualizar volume do Hum com base na carga e disjuntor
+      useEffect(() => {
+        if (humGainRef.current && audioCtxRef.current) {
+          const targetGain = breakerClosed ? (0.01 + (loadLevel / 100) * 0.04) : 0.002;
+          humGainRef.current.gain.setTargetAtTime(targetGain, audioCtxRef.current.currentTime, 0.2);
+        }
+      }, [loadLevel, breakerClosed]);
+
+      // Inicialização da Cena Three.js
+      useEffect(() => {
+        const container = document.getElementById('canvas-container');
+        if (!container) return;
+
+        // Cena, Câmera e Renderizador
+        const scene = new THREE.Scene();
+        sceneRef.current = scene;
+        scene.background = new THREE.Color(viewMode === 'night' ? '#070b12' : '#dbeafe');
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        // Vista Isométrica inicial idêntica à foto
+        camera.position.set(22, 18, 22);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+
+        container.appendChild(renderer.domElement);
+
+        // Controles de Câmera Órbita
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.02; // Não atravessar o chão
+        controls.minDistance = 5;
+        controls.maxDistance = 60;
+        controls.target.set(0, 2.5, 0);
+        controlsRef.current = controls;
+
+        // Iluminação Ambientes e Sol
+        const ambientLight = new THREE.AmbientLight(0xffffff, viewMode === 'night' ? 0.2 : 0.65);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, viewMode === 'night' ? 0.1 : 1.2);
+        sunLight.position.set(25, 35, 15);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 80;
+        const d = 16;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        scene.add(sunLight);
+
+        // Luzes Noturnas de Segurança (Spotlights nos cantos da cerca)
+        const nightSpotlights = [];
+        const spotPos = [[-7.5, 7.5], [7.5, 7.5], [-7.5, -7.5], [7.5, -7.5]];
+        spotPos.forEach(([x, z]) => {
+          const spot = new THREE.SpotLight(0xfffaed, viewMode === 'night' ? 2.5 : 0, 25, Math.PI / 4, 0.4);
+          spot.position.set(x, 4.5, z);
+          spot.target.position.set(0, 1, 0);
+          scene.add(spot);
+          scene.add(spot.target);
+          nightSpotlights.push(spot);
+        });
+
+        // --- MATERIAIS ---
+        const colors = {
+          grass: '#82ad50',
+          concrete: '#b0b5ba',
+          transformerGrey: '#7b8793',
+          radiatorGrey: '#5a646e',
+          porcelainBrown: '#5c2d18',
+          metalSteel: '#8a97a4',
+          yellowFence: '#f3b312',
+          cabinetWhite: '#e2e8f0',
+          warningYellow: '#eab308'
+        };
+
+        const matGrass = new THREE.MeshStandardMaterial({ color: colors.grass, roughness: 0.9 });
+        const matConcrete = new THREE.MeshStandardMaterial({ color: colors.concrete, roughness: 0.6 });
+        const matTrafo = new THREE.MeshStandardMaterial({ color: colors.transformerGrey, roughness: 0.4, metalness: 0.3 });
+        const matRadiator = new THREE.MeshStandardMaterial({ color: colors.radiatorGrey, roughness: 0.5, metalness: 0.2 });
+        const matPorcelain = new THREE.MeshStandardMaterial({ color: colors.porcelainBrown, roughness: 0.15, metalness: 0.1 });
+        const matSteel = new THREE.MeshStandardMaterial({ color: colors.metalSteel, roughness: 0.3, metalness: 0.7 });
+        const matFence = new THREE.MeshStandardMaterial({ color: colors.yellowFence, roughness: 0.4, metalness: 0.2 });
+        const matCabinet = new THREE.MeshStandardMaterial({ color: colors.cabinetWhite, roughness: 0.3, metalness: 0.1 });
+
+        // Grupo principal da Subestação
+        const substationGroup = new THREE.Group();
+        scene.add(substationGroup);
+
+        // 1. TERRENO E BASE
+        // Gramado Externo (Diamante em Isométrico)
+        const grassGeo = new THREE.BoxGeometry(26, 0.4, 26);
+        const grassMesh = new THREE.Mesh(grassGeo, matGrass);
+        grassMesh.position.y = -0.2;
+        grassMesh.receiveShadow = true;
+        substationGroup.add(grassMesh);
+
+        // Placa de Concreto da Subestação
+        const padGeo = new THREE.BoxGeometry(16, 0.3, 16);
+        const padMesh = new THREE.Mesh(padGeo, matConcrete);
+        padMesh.position.y = 0.15;
+        padMesh.receiveShadow = true;
+        padMesh.castShadow = true;
+        substationGroup.add(padMesh);
+
+        // Brita/Gravel Layer
+        const gravelGeo = new THREE.BoxGeometry(15.2, 0.05, 15.2);
+        const matGravel = new THREE.MeshStandardMaterial({ color: '#8d9296', roughness: 0.95 });
+        const gravelMesh = new THREE.Mesh(gravelGeo, matGravel);
+        gravelMesh.position.y = 0.32;
+        gravelMesh.receiveShadow = true;
+        substationGroup.add(gravelMesh);
+
+        // 2. CERCA DE SEGURANÇA AMARELA
+        const createFence = () => {
+          const fenceGroup = new THREE.Group();
+          const pMin = -7.3;
+          const pMax = 7.3;
+          const height = 1.8;
+
+          // Postes de Canto e Intermediários
+          const postGeo = new THREE.CylinderGeometry(0.06, 0.06, height);
+          const fencePositions = [];
+
+          for (let i = pMin; i <= pMax; i += 1.83) {
+            fencePositions.push([i, pMin], [i, pMax], [pMin, i], [pMax, i]);
+          }
+
+          fencePositions.forEach(([x, z]) => {
+            const post = new THREE.Mesh(postGeo, matFence);
+            post.position.set(x, 0.3 + height / 2, z);
+            post.castShadow = true;
+            fenceGroup.add(post);
+          });
+
+          // Trilhos Horizontais de Cerca
+          const createRail = (x1, z1, x2, z2, h) => {
+            const dx = x2 - x1;
+            const dz = z2 - z1;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            const railGeo = new THREE.BoxGeometry(0.04, 0.04, len);
+            const rail = new THREE.Mesh(railGeo, matFence);
+            rail.position.set((x1 + x2) / 2, h, (z1 + z2) / 2);
+            rail.rotation.y = Math.atan2(dx, dz);
+            fenceGroup.add(rail);
+          };
+
+          const heights = [0.5, 1.2, 1.9];
+          heights.forEach(h => {
+            createRail(pMin, pMin, pMax, pMin, h);
+            createRail(pMin, pMax, pMax, pMax, h);
+            createRail(pMin, pMin, pMin, pMax, h);
+            createRail(pMax, pMin, pMax, pMax, h);
+          });
+
+          // Placa de Sinalização "PERIGO ALTA TENSÃO ⚡"
+          const signGeo = new THREE.PlaneGeometry(0.6, 0.4);
+          const matSign = new THREE.MeshBasicMaterial({ color: '#fef08a', side: THREE.DoubleSide });
+          const sign = new THREE.Mesh(signGeo, matSign);
+          sign.position.set(0, 1.2, pMax + 0.02);
+          fenceGroup.add(sign);
+
+          return fenceGroup;
+        };
+        substationGroup.add(createFence());
+
+        // Helper para criar Isoladores cerâmicos marrons sanfonados
+        const createBushing = (height = 1.2, radius = 0.18) => {
+          const group = new THREE.Group();
+          const coreGeo = new THREE.CylinderGeometry(radius * 0.6, radius * 0.6, height, 16);
+          const core = new THREE.Mesh(coreGeo, matPorcelain);
+          core.castShadow = true;
+          group.add(core);
+
+          // Anéis/Discos de Saia Cerâmica
+          const ringCount = Math.floor(height * 6);
+          const ringGeo = new THREE.TorusGeometry(radius, radius * 0.22, 8, 16);
+          ringGeo.rotateX(Math.PI / 2);
+
+          for (let i = 0; i < ringCount; i++) {
+            const ring = new THREE.Mesh(ringGeo, matPorcelain);
+            ring.position.y = -height / 2 + (i + 0.5) * (height / ringCount);
+            ring.castShadow = true;
+            group.add(ring);
+          }
+
+          // Terminal metálico superior
+          const capGeo = new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, 0.15, 12);
+          const cap = new THREE.Mesh(capGeo, matSteel);
+          cap.position.y = height / 2 + 0.075;
+          group.add(cap);
+
+          return group;
+        };
+
+        // 3. TRANSFORMADOR PRINCIPAL (CENTRAL)
+        const createMainTransformer = () => {
+          const trafoGroup = new THREE.Group();
+          trafoGroup.name = "transformer";
+
+          // Corpo Principal Tanque do Trafo
+          const bodyGeo = new THREE.BoxGeometry(3.2, 2.2, 2.4);
+          const body = new THREE.Mesh(bodyGeo, matTrafo);
+          body.position.set(0, 1.4, 0);
+          body.castShadow = true;
+          body.receiveShadow = true;
+          trafoGroup.add(body);
+
+          // Tanque Conservador Superior (Cilindro)
+          const consGeo = new THREE.CylinderGeometry(0.5, 0.5, 2.8, 16);
+          consGeo.rotateZ(Math.PI / 2);
+          const conservator = new THREE.Mesh(consGeo, matTrafo);
+          conservator.position.set(-0.2, 3.2, -0.6);
+          conservator.castShadow = true;
+          trafoGroup.add(conservator);
+
+          // Suportes do Conservador
+          const suppGeo = new THREE.BoxGeometry(0.1, 0.8, 0.1);
+          const s1 = new THREE.Mesh(suppGeo, matSteel);
+          s1.position.set(-1.0, 2.7, -0.6);
+          const s2 = new THREE.Mesh(suppGeo, matSteel);
+          s2.position.set(0.6, 2.7, -0.6);
+          trafoGroup.add(s1);
+          trafoGroup.add(s2);
+
+          // Buchas de Alta Tensão (AT) - 3 Fases
+          const bushingsAT = [];
+          for (let i = -1; i <= 1; i++) {
+            const b = createBushing(1.4, 0.22);
+            b.position.set(i * 0.8, 2.5 + 0.7, 0.4);
+            trafoGroup.add(b);
+            bushingsAT.push(b);
+          }
+
+          // Buchas de Média Tensão (MT) - 4 Fases (com neutro)
+          for (let i = -1.2; i <= 1.2; i += 0.8) {
+            const b = createBushing(0.9, 0.15);
+            b.position.set(i, 2.5 + 0.45, -0.6);
+            trafoGroup.add(b);
+          }
+
+          // Bateria de Radiadores de Refrigeração na Lateral Posterior
+          const radGroup = new THREE.Group();
+          radGroup.name = "radiators";
+          for (let r = -1.2; r <= 1.2; r += 0.4) {
+            const radFin = new THREE.BoxGeometry(0.12, 1.8, 1.6);
+            const fin = new THREE.Mesh(radFin, matRadiator);
+            fin.position.set(r, 1.4, -2.0);
+            fin.castShadow = true;
+            radGroup.add(fin);
+          }
+          // Tubos de conexão do radiador ao tanque
+          const pipeGeo = new THREE.CylinderGeometry(0.1, 0.1, 2.6);
+          pipeGeo.rotateZ(Math.PI / 2);
+          const pipeTop = new THREE.Mesh(pipeGeo, matSteel);
+          pipeTop.position.set(0, 2.1, -2.0);
+          const pipeBot = new THREE.Mesh(pipeGeo, matSteel);
+          pipeBot.position.set(0, 0.7, -2.0);
+          radGroup.add(pipeTop);
+          radGroup.add(pipeBot);
+
+          trafoGroup.add(radGroup);
+          componentMeshesRef.current['radiators'] = radGroup;
+
+          // Caixa do Painel do Trafo
+          const ctrlBoxGeo = new THREE.BoxGeometry(0.8, 1.0, 0.4);
+          const ctrlBox = new THREE.Mesh(ctrlBoxGeo, matCabinet);
+          ctrlBox.position.set(-1.61, 1.2, 0.5);
+          ctrlBox.castShadow = true;
+          trafoGroup.add(ctrlBox);
+
+          return trafoGroup;
+        };
+
+        const trafoMesh = createMainTransformer();
+        substationGroup.add(trafoMesh);
+        componentMeshesRef.current['transformer'] = trafoMesh;
+
+        // 4. PÓRTICO METÁLICO DE ENTRADA (GANTRY FRAME)
+        const createGantry = () => {
+          const gantryGroup = new THREE.Group();
+          gantryGroup.name = "gantry";
+
+          const towerHeight = 7.5;
+          const towerSpacing = 6.0;
+
+          // Colunas Treliçadas Metálicas
+          const createTrussColumn = (x, z) => {
+            const col = new THREE.Group();
+            const mainLegGeo = new THREE.CylinderGeometry(0.06, 0.08, towerHeight);
+
+            // 4 pernas de cada torre treliçada
+            const offset = 0.25;
+            [[-offset, -offset], [offset, -offset], [-offset, offset], [offset, offset]].forEach(([ox, oz]) => {
+              const leg = new THREE.Mesh(mainLegGeo, matSteel);
+              leg.position.set(x + ox, towerHeight / 2 + 0.3, z + oz);
+              leg.castShadow = true;
+              col.add(leg);
+            });
+
+            // Travessas em Z
+            for (let h = 1.0; h < towerHeight; h += 0.8) {
+              const barGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.7);
+              const bar = new THREE.Mesh(barGeo, matSteel);
+              bar.position.set(x, h, z);
+              bar.rotation.z = Math.PI / 4;
+              col.add(bar);
+            }
+            return col;
+          };
+
+          gantryGroup.add(createTrussColumn(-towerSpacing / 2, -4.5));
+          gantryGroup.add(createTrussColumn(towerSpacing / 2, -4.5));
+
+          // Viga Transversal do Pórtico
+          const beamLength = towerSpacing + 1.2;
+          const beamGeo = new THREE.BoxGeometry(beamLength, 0.4, 0.4);
+          const beam = new THREE.Mesh(beamGeo, matSteel);
+          beam.position.set(0, towerHeight, -4.5);
+          beam.castShadow = true;
+          gantryGroup.add(beam);
+
+          // Isoladores do Barramento de Alta Tensão Suspensos
+          for (let i = -2; i <= 2; i += 2) {
+            const stringBushing = createBushing(1.1, 0.14);
+            stringBushing.position.set(i, towerHeight - 0.7, -4.5);
+            gantryGroup.add(stringBushing);
+          }
+
+          return gantryGroup;
+        };
+
+        const gantryMesh = createGantry();
+        substationGroup.add(gantryMesh);
+        componentMeshesRef.current['gantry'] = gantryMesh;
+
+        // 5. DISJUNTORES A GÁS SF6 E SECCIONADORAS (BAÍAS LATERAIS)
+        const createCircuitBreakerUnit = (x, z, nameKey) => {
+          const breakerGroup = new THREE.Group();
+          breakerGroup.name = nameKey;
+
+          // Pedestais metálicos de suporte
+          const baseGeo = new THREE.BoxGeometry(1.4, 1.0, 1.0);
+          const base = new THREE.Mesh(baseGeo, matSteel);
+          base.position.set(x, 0.8, z);
+          base.castShadow = true;
+          breakerGroup.add(base);
+
+          // 3 Polos com Buchas de Interrupção
+          for (let p = -0.5; p <= 0.5; p += 0.5) {
+            const pole = createBushing(1.1, 0.16);
+            pole.position.set(x + p, 1.3 + 0.55, z);
+            breakerGroup.add(pole);
+          }
+
+          // Gabinete mecânico do disjuntor
+          const cabGeo = new THREE.BoxGeometry(0.5, 0.6, 0.3);
+          const cab = new THREE.Mesh(cabGeo, matCabinet);
+          cab.position.set(x, 0.8, z + 0.55);
+          breakerGroup.add(cab);
+
+          // LED Indicador de Estado (Verde = Aberto, Vermelho = Fechado)
+          const ledGeo = new THREE.SphereGeometry(0.05, 8, 8);
+          const matLed = new THREE.MeshBasicMaterial({ color: breakerClosed ? '#ef4444' : '#22c55e' });
+          const led = new THREE.Mesh(ledGeo, matLed);
+          led.position.set(x, 0.95, z + 0.71);
+          breakerGroup.add(led);
+
+          return breakerGroup;
+        };
+
+        const breaker1 = createCircuitBreakerUnit(-4.2, -1.0, 'breaker_1');
+        const breaker2 = createCircuitBreakerUnit(4.2, 1.5, 'breaker_2');
+        substationGroup.add(breaker1);
+        substationGroup.add(breaker2);
+        componentMeshesRef.current['breaker_1'] = breaker1;
+        componentMeshesRef.current['breaker_2'] = breaker2;
+
+        // 6. ARMÁRIOS DE COMANDO E CONTROLE SCADA
+        const createControlCabinets = () => {
+          const group = new THREE.Group();
+          group.name = "cabinets";
+
+          for (let c = 0; c < 2; c++) {
+            const cabGeo = new THREE.BoxGeometry(1.0, 1.8, 0.8);
+            const cab = new THREE.Mesh(cabGeo, matCabinet);
+            cab.position.set(3.5 + c * 1.2, 1.2, -3.5);
+            cab.castShadow = true;
+            group.add(cab);
+
+            // Maçanetas e fechaduras dos painéis
+            const handleGeo = new THREE.BoxGeometry(0.04, 0.2, 0.05);
+            const handle = new THREE.Mesh(handleGeo, matSteel);
+            handle.position.set(3.8 + c * 1.2, 1.2, -3.08);
+            group.add(handle);
+          }
+
+          return group;
+        };
+
+        const cabinetsMesh = createControlCabinets();
+        substationGroup.add(cabinetsMesh);
+        componentMeshesRef.current['cabinets'] = cabinetsMesh;
+
+        // 7. ARRANJO DE PARA-RAIOS E MEDIÇÃO
+        const createArresterRack = () => {
+          const rackGroup = new THREE.Group();
+          rackGroup.name = "arresters";
+
+          const frameGeo = new THREE.BoxGeometry(2.2, 0.8, 0.4);
+          const frame = new THREE.Mesh(frameGeo, matSteel);
+          frame.position.set(4.5, 0.7, -0.5);
+          rackGroup.add(frame);
+
+          for (let a = -0.8; a <= 0.8; a += 0.8) {
+            const arr = createBushing(1.0, 0.12);
+            arr.position.set(4.5 + a, 1.1 + 0.5, -0.5);
+            rackGroup.add(arr);
+          }
+
+          return rackGroup;
+        };
+
+        const arrestersMesh = createArresterRack();
+        substationGroup.add(arrestersMesh);
+        componentMeshesRef.current['arresters'] = arrestersMesh;
+
+        // 8. CABOS DE CONEXÃO E CONDUTORES ELÉTRICOS (CATENÁRIAS)
+        const createPowerCables = () => {
+          const cablesGroup = new THREE.Group();
+          const cableMat = new THREE.LineBasicMaterial({ color: 0x222222, linewidth: 2 });
+
+          const drawCurve = (p1, p2, sag = 0.4) => {
+            const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+            mid.y -= sag; // Curvatura natural do cabo por gravidade
+
+            const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+            const points = curve.getPoints(20);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geometry, cableMat);
+            cablesGroup.add(line);
+
+            // Criar partículas elétricas para animação de fluxo de energia
+            if (breakerClosed) {
+              const particleGeo = new THREE.BufferGeometry();
+              const pCount = 5;
+              const pPos = new Float32Array(pCount * 3);
+              particleGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+              const pMat = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.15, transparent: true, opacity: 0.9 });
+              const particles = new THREE.Points(particleGeo, pMat);
+              particles.userData = { curve, speed: 0.008 + Math.random() * 0.004, progress: Math.random() };
+              scene.add(particles);
+              particleSystemsRef.current.push(particles);
+            }
+          };
+
+          // Cabos do Pórtico para o Disjuntor 1
+          drawCurve(new THREE.Vector3(-2, 6.8, -4.5), new THREE.Vector3(-4.2, 2.5, -1.0));
+          drawCurve(new THREE.Vector3(0, 6.8, -4.5), new THREE.Vector3(-3.7, 2.5, -1.0));
+          drawCurve(new THREE.Vector3(2, 6.8, -4.5), new THREE.Vector3(-4.7, 2.5, -1.0));
+
+          // Cabos do Disjuntor 1 para as Buchas AT do Trafo
+          drawCurve(new THREE.Vector3(-4.2, 2.5, -1.0), new THREE.Vector3(-0.8, 3.8, 0.4));
+          drawCurve(new THREE.Vector3(-3.7, 2.5, -1.0), new THREE.Vector3(0, 3.8, 0.4));
+          drawCurve(new THREE.Vector3(-4.7, 2.5, -1.0), new THREE.Vector3(0.8, 3.8, 0.4));
+
+          // Cabos do Trafo para o Disjuntor 2
+          drawCurve(new THREE.Vector3(0, 3.2, -0.6), new THREE.Vector3(4.2, 2.5, 1.5));
+
+          return cablesGroup;
+        };
+
+        const cablesMesh = createPowerCables();
+        substationGroup.add(cablesMesh);
+
+        // --- SISTEMA DE SELEÇÃO E RAYCASTING (CLIQUE NOS COMPONENTES) ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        const handleClick = (event) => {
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects(substationGroup.children, true);
+
+          if (intersects.length > 0) {
+            let obj = intersects[0].object;
+            while (obj.parent && obj.parent !== substationGroup && !obj.name) {
+              obj = obj.parent;
+            }
+            if (obj.name && componentData[obj.name]) {
+              setSelectedComponent(obj.name);
+            }
+          }
+        };
+
+        window.addEventListener('click', handleClick);
+
+        // Redimensionamento de tela
+        const handleResize = () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+        window.addEventListener('resize', handleResize);
+
+        // LOOP DE ANIMAÇÃO 3D
+        let animationFrameId;
+        const clock = new THREE.Clock();
+
+        const animate = () => {
+          animationFrameId = requestAnimationFrame(animate);
+          const time = clock.getElapsedTime();
+
+          controls.update();
+
+          // Animação de partículas de energia fluindo pelos cabos
+          particleSystemsRef.current.forEach(p => {
+            const { curve, speed } = p.userData;
+            p.userData.progress = (p.userData.progress + speed) % 1;
+            const posArr = p.geometry.attributes.position.array;
+
+            for (let i = 0; i < 5; i++) {
+              const t = (p.userData.progress + i * 0.18) % 1;
+              const pt = curve.getPoint(t);
+              posArr[i * 3] = pt.x;
+              posArr[i * 3 + 1] = pt.y;
+              posArr[i * 3 + 2] = pt.z;
+            }
+            p.geometry.attributes.position.needsUpdate = true;
+          });
+
+          // Animação suave de pulso do transformador quando energizado
+          if (breakerClosed && componentMeshesRef.current['transformer']) {
+            const trafo = componentMeshesRef.current['transformer'];
+            const vibe = Math.sin(time * 30) * 0.002 * (loadLevel / 100);
+            trafo.position.y = vibe;
+          }
+
+          renderer.render(scene, camera);
+        };
+
+        animate();
+
+        // Cleanup
+        return () => {
+          window.removeEventListener('resize', handleResize);
+          window.removeEventListener('click', handleClick);
+          cancelAnimationFrame(animationFrameId);
+          if (container.contains(renderer.domElement)) {
+            container.removeChild(renderer.domElement);
+          }
+        };
+      }, []);
+
+      // Atualizar Modos de Renderização (Normal, Raio-X, Térmico, Noturno)
+      useEffect(() => {
+        if (!sceneRef.current) return;
+        const scene = sceneRef.current;
+
+        scene.traverse((child) => {
+          if (child.isMesh) {
+            if (viewMode === 'xray') {
+              child.material.wireframe = true;
+              child.material.transparent = true;
+              child.material.opacity = 0.6;
+            } else if (viewMode === 'thermal') {
+              child.material.wireframe = false;
+              child.material.transparent = false;
+
+              // Simular assinatura de calor termográfica
+              if (child.parent && child.parent.name === 'transformer') {
+                child.material.color.setHex(0xef4444); // Quente (Vermelho/Laranja)
+              } else if (child.parent && child.parent.name === 'radiators') {
+                child.material.color.setHex(0xf97316);
+              } else {
+                child.material.color.setHex(0x3b82f6); // Frio (Azul)
+              }
+            } else {
+              // Modo Normal / Noturno
+              child.material.wireframe = false;
+              child.material.transparent = false;
+              child.material.opacity = 1.0;
+            }
+          }
+        });
+
+        if (viewMode === 'night') {
+          scene.background = new THREE.Color('#070b12');
+        } else {
+          scene.background = new THREE.Color('#dbeafe');
+        }
+      }, [viewMode]);
+
+      // Alternar Ângulos de Câmera
+      const setCameraPreset = (preset) => {
+        if (!controlsRef.current) return;
+        const controls = controlsRef.current;
+
+        switch (preset) {
+          case 'iso':
+            controls.object.position.set(22, 18, 22);
+            controls.target.set(0, 2.5, 0);
+            break;
+          case 'top':
+            controls.object.position.set(0, 30, 0.1);
+            controls.target.set(0, 0, 0);
+            break;
+          case 'trafo':
+            controls.object.position.set(5, 4, 6);
+            controls.target.set(0, 2, 0);
+            setSelectedComponent('transformer');
+            break;
+          case 'gantry':
+            controls.object.position.set(0, 8, -12);
+            controls.target.set(0, 5, -4.5);
+            setSelectedComponent('gantry');
+            break;
+          default:
+            break;
+        }
+      };
+
+      // Alternar Estado do Disjuntor Principal
+      const toggleBreaker = () => {
+        const newState = !breakerClosed;
+        setBreakerClosed(newState);
+
+        if (!newState) {
+          setAlarms(prev => [
+            { id: Date.now(), msg: "ALERTA: Disjuntor Principal Abertura de Emergência!", time: new Date().toLocaleTimeString() },
+            ...prev
+          ]);
+        } else {
+          setAlarms(prev => [
+            { id: Date.now(), msg: "SISTEMA: Disjuntor Reagrupado e Energizado.", time: new Date().toLocaleTimeString() },
+            ...prev
+          ]);
+        }
+      };
+
+      return (
+        <div className="relative w-full h-screen pointer-events-none select-none text-slate-100 flex flex-col justify-between p-4">
+
+          {/* HEADER BAR */}
+          <header className="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-4 flex flex-wrap items-center justify-between shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500/20 rounded-lg border border-amber-500/40">
+                <Icons.Zap />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+                  Subestação Elétrica SE-138kV
+                  <span className="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    GEM3D DIGITAL TWIN
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-400">Modelo 3D Interativo de Inspeção e Telemetria Operacional</p>
+              </div>
+            </div>
+
+            {/* BARRA DE CONTROLES RÁPIDOS */}
+            <div className="flex items-center gap-2 mt-2 sm:mt-0">
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className={`p-2 rounded-lg border text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  soundEnabled ? 'bg-amber-500/20 border-amber-500/50 text-amber-300' : 'bg-slate-800 border-slate-700 text-slate-400'
+                }`}
+                title="Ativar Hum Elétrico Industrial 60Hz"
+              >
+                <Icons.Volume active={soundEnabled} />
+                <span>60Hz Áudio</span>
+              </button>
+
+              <button
+                onClick={toggleBreaker}
+                className={`px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg flex items-center gap-2 ${
+                  breakerClosed
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-900/40'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
+                }`}
+              >
+                <Icons.Zap />
+                {breakerClosed ? 'DESENERGIZAR DISJUNTOR' : 'ENERGIZAR SUBESTAÇÃO'}
+              </button>
+            </div>
+          </header>
+
+          {/* PAINEL CENTRAL DE VISUALIZAÇÃO E TELEMETRIA */}
+          <div className="flex justify-between items-start gap-4 my-auto">
+
+            {/* PAINEL ESQUERDO: SELEÇÃO DE VISTAS E MODOS */}
+            <div className="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 flex flex-col gap-3 w-48 shadow-xl">
+              <div className="text-xs font-bold text-slate-400 tracking-wider uppercase border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
+                <Icons.Camera /> Câmera Presets
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => setCameraPreset('iso')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Isométrica</button>
+                <button onClick={() => setCameraPreset('top')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Planta Baixa</button>
+                <button onClick={() => setCameraPreset('trafo')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Trafo 01</button>
+                <button onClick={() => setCameraPreset('gantry')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Pórtico AT</button>
+              </div>
+
+              <div className="text-xs font-bold text-slate-400 tracking-wider uppercase border-b border-slate-800 pb-1.5 mt-2 flex items-center gap-1.5">
+                <Icons.Eye /> Modos de Render
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <button onClick={() => setViewMode('normal')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'normal' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Standard 3D</button>
+                <button onClick={() => setViewMode('xray')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'xray' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Raio-X (Wireframe)</button>
+                <button onClick={() => setViewMode('thermal')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'thermal' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Termografia IR</button>
+                <button onClick={() => setViewMode('night')} className={`px-2.5 py-1.5 rounded text-xs text-left border ${viewMode === 'night' ? 'bg-sky-600/30 border-sky-500 text-sky-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>Visão Noturna</button>
+              </div>
+            </div>
+
+            {/* CARD DE DETALHES DO COMPONENTE SELECIONADO (DIREITA) */}
+            {selectedComponent && componentData[selectedComponent] && (
+              <div className="pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-xl p-4 w-80 shadow-2xl animate-fade-in">
+                <div className="flex justify-between items-start border-b border-slate-800 pb-2 mb-3">
+                  <h3 className="font-bold text-sm text-amber-400">{componentData[selectedComponent].title}</h3>
+                  <button onClick={() => setSelectedComponent(null)} className="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+                </div>
+                <p className="text-xs text-slate-300 mb-3 leading-relaxed">{componentData[selectedComponent].desc}</p>
+
+                <div className="space-y-2 text-xs bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                  {componentData[selectedComponent].voltage && (
+                    <div className="flex justify-between"><span className="text-slate-400">Tensão Operacional:</span><span className="font-mono text-sky-300">{componentData[selectedComponent].voltage}</span></div>
+                  )}
+                  {componentData[selectedComponent].power && (
+                    <div className="flex justify-between"><span className="text-slate-400">Potência Nominal:</span><span className="font-mono text-emerald-300">{componentData[selectedComponent].power}</span></div>
+                  )}
+                  {componentData[selectedComponent].temp && (
+                    <div className="flex justify-between"><span className="text-slate-400">Temperatura Estimada:</span><span className="font-mono text-amber-300">{componentData[selectedComponent].temp}</span></div>
+                  )}
+                  <div className="flex justify-between"><span className="text-slate-400">Status Operacional:</span><span className="font-mono text-indigo-300">{componentData[selectedComponent].status}</span></div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* FOOTER BAR: CONTROLE DE CARGA E LOG DE ALARMES */}
+          <footer className="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 shadow-2xl mt-auto">
+
+            {/* CONTROLE DE CARGA */}
+            <div className="flex items-center gap-4 min-w-[280px]">
+              <div className="text-xs font-semibold text-slate-300">
+                Carga no Trafo: <span className="font-mono text-amber-400">{loadLevel}%</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="120"
+                value={loadLevel}
+                onChange={(e) => setLoadLevel(Number(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-700 rounded-lg"
+              />
+            </div>
+
+            {/* STATUS DAS METRICAS */}
+            <div className="flex items-center gap-6 text-xs font-mono">
+              <div>Frequência: <span className="text-emerald-400">60.00 Hz</span></div>
+              <div>Potência Ativa: <span className="text-sky-400">{Math.round(48 * (loadLevel/100))} MW</span></div>
+              <div>FP: <span className="text-indigo-400">0.92 Ind</span></div>
+            </div>
+
+            {/* ALERTAS E LOGS SCADA */}
+            <div className="text-xs flex items-center gap-2 max-w-xs truncate">
+              {alarms.length > 0 ? (
+                <div className="text-rose-400 flex items-center gap-1.5 animate-pulse">
+                  <Icons.AlertTriangle />
+                  <span>{alarms[0].msg}</span>
+                </div>
+              ) : (
+                <div className="text-emerald-400 flex items-center gap-1.5">
+                  <Icons.Shield />
+                  <span>Subestação operando em regime normal</span>
+                </div>
+              )}
+            </div>
+          </footer>
+
+        </div>
+      );
+    }
+
+    // Renderização do App React
+    ReactDOM.createRoot(document.getElementById('root')).render(<SubstationApp />);
+  </script>
+</body>
 </html>

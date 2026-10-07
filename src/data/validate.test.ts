@@ -87,6 +87,19 @@ describe('validateYard', () => {
     expect(result.errors).toContain('Walker "w2" needs a route with at least 2 points');
   });
 
+  it('rejects a connection to equipment that has no terminals', () => {
+    const yard = baseYard({
+      equipment: [
+        { id: 't1', type: 'transformer', position: [0, 0, 0] },
+        { id: 'cb1', type: 'cabinet', position: [10, 0, 0] },
+      ],
+      connections: [{ from: { equipmentId: 't1', terminal: 'lv1' }, to: { equipmentId: 'cb1', terminal: 'top' } }],
+    });
+    const result = validateYard(yard);
+    expect(result.validConnections).toHaveLength(0);
+    expect(result.errors[0]).toContain('has no terminal "top"');
+  });
+
   it('reports unknown equipment types and drops their connections', () => {
     const yard = baseYard({
       equipment: [

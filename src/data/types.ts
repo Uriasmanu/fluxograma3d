@@ -8,7 +8,8 @@ export type EquipmentType =
   | 'pt'
   | 'arrester'
   | 'gantry'
-  | 'busbar';
+  | 'busbar'
+  | 'cabinet';
 
 export interface Equipment {
   id: string;
@@ -55,5 +56,6 @@ export interface Viewpoint {
   label: string;
   position: Vec3;
   target: Vec3;
+  span: number;
   openRoof?: boolean;
 }

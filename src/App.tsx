@@ -1,7 +1,7 @@
 import { Stats } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { useCallback, useState } from 'react';
-import { CAMERA_LIMITS } from './data/cameraLimits';
+import { zoomForSpan } from './data/cameraLimits';
 import type { Viewpoint } from './data/types';
 import { VIEWPOINTS } from './data/viewpoints';
 import { CameraRig, type TourRequest } from './scene/camera/CameraRig';
@@ -34,7 +34,13 @@ export function App() {
         shadows="percentage"
         dpr={[1, 2]}
         frameloop="always"
-        camera={{ fov: CAMERA_LIMITS.fov, near: 1, far: 400, position: VIEWPOINTS[0].position }}
+        orthographic
+        camera={{
+          near: 0.1,
+          far: 500,
+          position: VIEWPOINTS[0].position,
+          zoom: zoomForSpan(VIEWPOINTS[0].span, window.innerWidth),
+        }}
       >
         <Scene roofOpen={roofOpen} onToggleRoof={toggleRoof} />
         <CameraRig request={request} />

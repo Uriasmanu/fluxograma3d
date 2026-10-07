@@ -1,6 +1,7 @@
 import type { Yard } from './types';
 
 export const YARD_SIZE = { width: 60, depth: 40 } as const;
+export const SLAB_SIZE = { width: 96, depth: 60 } as const;
 
 const CHAIN_ROTATION = -Math.PI / 2;
 const HV_TOWARD_ENTRY = -Math.PI / 2;
@@ -17,9 +18,11 @@ export const YARD: Yard = {
     { id: 'sa1', type: 'arrester', position: [-12, 0, 1] },
     { id: 'sa2', type: 'arrester', position: [12, 0, 1] },
     { id: 'bb1', type: 'busbar', position: [0, 0, 13] },
+    { id: 'cb1', type: 'cabinet', position: [20, 0, -4], rotationY: Math.PI },
+    { id: 'cb2', type: 'cabinet', position: [22.2, 0, -4], rotationY: Math.PI },
   ],
   connections: [
-    { from: { equipmentId: 'g1', terminal: 'mid' }, to: { equipmentId: 'd1', terminal: 'in' }, sag: 1 },
+    { from: { equipmentId: 'g1', terminal: 'mid' }, to: { equipmentId: 'd1', terminal: 'in' }, sag: 0.6 },
     { from: { equipmentId: 'd1', terminal: 'out' }, to: { equipmentId: 'b1', terminal: 'in' }, sag: 0.3 },
     { from: { equipmentId: 'd1', terminal: 'out' }, to: { equipmentId: 'pt1', terminal: 'top' }, sag: 0.3 },
     { from: { equipmentId: 'b1', terminal: 'out' }, to: { equipmentId: 'ct1', terminal: 'in' }, sag: 0.3 },

@@ -1,8 +1,15 @@
-import type { Viewpoint } from './types';
+import type { Vec3, Viewpoint } from './types';
+
+const ISO_OFFSET: Vec3 = [-57.735, 57.735, 57.735];
+
+function isoViewpoint(id: string, label: string, target: Vec3, span: number, openRoof?: boolean): Viewpoint {
+  const position: Vec3 = [target[0] + ISO_OFFSET[0], target[1] + ISO_OFFSET[1], target[2] + ISO_OFFSET[2]];
+  return { id, label, position, target, span, openRoof };
+}
 
 export const VIEWPOINTS: Viewpoint[] = [
-  { id: 'overview', label: 'Visão geral', position: [-53, 80, 56], target: [3, 0, 0] },
-  { id: 'line-entry', label: 'Entrada de linha', position: [-12, 20, -2], target: [0, 3, -14] },
-  { id: 'transformers', label: 'Transformadores', position: [-18, 32, 21], target: [0, 2, 3] },
-  { id: 'monitoring-room', label: 'Sala de monitoramento', position: [24, 20, 14], target: [38, 0, 0], openRoof: true },
+  isoViewpoint('overview', 'Visão geral', [3, 0, 0], 118),
+  isoViewpoint('line-entry', 'Entrada de linha', [0, 0, -14], 36),
+  isoViewpoint('transformers', 'Transformadores', [0, 0, 3], 50),
+  isoViewpoint('monitoring-room', 'Sala de monitoramento', [38, 0, 0], 34, true),
 ];

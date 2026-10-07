@@ -1,33 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { CAMERA_LIMITS } from './cameraLimits';
+import { CAMERA_LIMITS, ISO_POLAR } from './cameraLimits';
 import { VIEWPOINTS } from './viewpoints';
 
-const offset = (viewpoint: (typeof VIEWPOINTS)[number]) =>
-  viewpoint.position.map((value, axis) => value - viewpoint.target[axis]);
+const polarOf = (viewpoint: (typeof VIEWPOINTS)[number]) => {
+  const [dx, dy, dz] = viewpoint.position.map((value, axis) => value - viewpoint.target[axis]);
+  return Math.acos(dy / Math.hypot(dx, dy, dz));
+};
 
 describe('VIEWPOINTS', () => {
   it.each(VIEWPOINTS.map((viewpoint) => [viewpoint.id, viewpoint] as const))(
-    '%s respects the polar angle and distance limits',
+    '%s uses the isometric tilt and a span inside the limits',
     (_id, viewpoint) => {
-      const [dx, dy, dz] = offset(viewpoint);
-      const distance = Math.hypot(dx, dy, dz);
-      const polar = Math.acos(dy / distance);
-      expect(polar).toBeGreaterThanOrEqual(CAMERA_LIMITS.minPolar);
-      expect(polar).toBeLessThanOrEqual(CAMERA_LIMITS.maxPolar);
-      expect(distance).toBeGreaterThanOrEqual(CAMERA_LIMITS.minDistance);
-      expect(distance).toBeLessThanOrEqual(CAMERA_LIMITS.maxDistance);
+      expect(polarOf(viewpoint)).toBeCloseTo(ISO_POLAR, 3);
+      expect(viewpoint.span).toBeGreaterThanOrEqual(CAMERA_LIMITS.minSpan);
+      expect(viewpoint.span).toBeLessThanOrEqual(CAMERA_LIMITS.maxSpan);
     },
   );
 
   it.each(VIEWPOINTS.map((viewpoint) => [viewpoint.id, viewpoint] as const))(
-    '%s targets a point inside the pan bounds',
+    '%s targets a point inside the pan bounds, including its height',
     (_id, viewpoint) => {
       const { min, max } = CAMERA_LIMITS.bounds;
-      expect(viewpoint.target[0]).toBeGreaterThanOrEqual(min[0]);
-      expect(viewpoint.target[0]).toBeLessThanOrEqual(max[0]);
-      expect(viewpoint.target[2]).toBeGreaterThanOrEqual(min[2]);
-      expect(viewpoint.target[2]).toBeLessThanOrEqual(max[2]);
-      expect(viewpoint.target[1]).toBeGreaterThanOrEqual(0);
+      for (const axis of [0, 1, 2]) {
+        expect(viewpoint.target[axis]).toBeGreaterThanOrEqual(min[axis]);
+        expect(viewpoint.target[axis]).toBeLessThanOrEqual(max[axis]);
+      }
     },
   );
 

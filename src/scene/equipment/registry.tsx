@@ -4,6 +4,7 @@ import { MATERIALS } from '../materials';
 import { Block } from '../primitives';
 import { Busbar } from './Busbar';
 import { CircuitBreaker } from './CircuitBreaker';
+import { ControlCabinet } from './ControlCabinet';
 import { CurrentTransformer } from './CurrentTransformer';
 import { Disconnector } from './Disconnector';
 import { Gantry } from './Gantry';
@@ -29,6 +30,7 @@ const EQUIPMENT_COMPONENTS: Record<EquipmentType, ComponentType<EquipmentProps>>
   arrester: SurgeArrester,
   gantry: Gantry,
   busbar: Busbar,
+  cabinet: ControlCabinet,
 };
 
 const warned = new Set<string>();

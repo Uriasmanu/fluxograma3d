@@ -1,21 +1,6 @@
-import type { Vec3 } from '../../data/types';
+import { TREE_POSITIONS } from '../../data/trees';
 import { MATERIALS } from '../materials';
 import { Cylinder } from '../primitives';
-
-const TREE_POSITIONS: Vec3[] = [
-  [-36, 0, -18],
-  [-40, 0, -2],
-  [-36, 0, 14],
-  [-20, 0, 26],
-  [0, 0, 28],
-  [22, 0, 26],
-  [36, 0, -22],
-  [20, 0, -26],
-  [-22, 0, -26],
-  [42, 0, 16],
-  [44, 0, -14],
-  [-8, 0, -28],
-];
 
 export function Trees() {
   return (

@@ -7,6 +7,7 @@ export const TERMINALS: Record<EquipmentType, Record<string, Vec3>> = {
   ct: { in: [-0.4, 3.2, 0], out: [0.4, 3.2, 0] },
   pt: { top: [0, 3.2, 0] },
   arrester: { top: [0, 3.4, 0] },
-  gantry: { left: [-4, 6, 0], mid: [0, 6, 0], right: [4, 6, 0] },
+  gantry: { left: [-4, 6, 0], mid: [0, 3.8, 0], right: [4, 6, 0] },
   busbar: { a: [-12, 4, 0], tap1: [-8, 4, 0], tap2: [8, 4, 0], b: [12, 4, 0] },
+  cabinet: {},
 };
