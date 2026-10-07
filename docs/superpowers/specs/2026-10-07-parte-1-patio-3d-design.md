@@ -353,8 +353,12 @@ Esta seção descreve a cena que abre na página principal. Ela parte do código
 | Usina elétrica (prédios, chaminés, ventoinhas, tambores, fumaça) | Código do usuário, enviado depois (somente a parte 3D; o pequeno pátio de transformadores dela foi removido a pedido) |
 | 2 pessoas andando entre a subestação e a usina | Acréscimo |
 | Interior do escritório da usina (3 mesas com PC, 3 pessoas sentadas, 1 andando) | Acréscimo |
-| Treetech: segunda empresa, com o PC do RabbitMQ dentro | Acréscimo |
-| Portão na cerca leste | Acréscimo |
+| Treetech: segunda empresa, com o servidor (RabbitMQ, Sigma e banco) | Acréscimo |
+| Módulos TM, BM, GMP e DM nos equipamentos, fábrica de módulos, estrada com vans | Acréscimo (ver 12.6.5 a 12.6.7) |
+| Comunicação E3 e Sync, filas, bancos e painel do Sigma ECM | Acréscimo, conforme [dominio-treetech.md](../../dominio-treetech.md) |
+| Tour guiado de oito passos | Acréscimo (ver 12.6.8) |
+| Postes de luz na cidade e na estrada | Pedido do usuário |
+| Portões nas cercas leste e sul | Acréscimo |
 | Cores mais apagadas na cidade e na usina | Ajuste pedido |
 
 ### 12.3 Disposição na cena
@@ -369,6 +373,10 @@ Unidade em metros nominais; Y para cima; a subestação fica na origem.
 | Cidade | Chão de 34 × 34 com centro em (54; −18,5), duas ruas em cruz, 8 casas, 8 postes, árvores |
 | Faixa de grama de ligação | De x = 12,5 a x = 72 e de z = −37 a z = 13, abaixo da cidade e das torres |
 | Treetech | Centro em (54; 0,3; 9,5), ao sul da cidade. Base de 16 × 16 e grama de 26 × 26 (ver 12.6.2) |
+| Fábrica de módulos | Centro em (54; 0,3; 33), ao sul da estrada (ver 12.6.5) |
+| Estrada | Em z = 19,5, de x = −5 a x = 65, com ramal em x = −4 até o portão sul (ver 12.6.6) |
+| Antenas | Uma na subestação, em (2,8; 0,345; 5,3), e outra na Treetech, em (60,8; 0,3; 7,5) |
+| Bancos de dados e fila | Cilindros em x = 60,9 (z = 2,6 e 4,5); fila em (58; 0,3; 3,4) (ver 12.6.3) |
 
 A usina está girada para as chaminés e os prédios altos ficarem do lado sul, longe dos cabos que saem do pórtico.
 
@@ -406,7 +414,7 @@ O prédio laranja deixou de ser uma caixa maciça: tem piso, quatro paredes e um
 - **Cores:** mobília e roupas em tons apagados, como o resto da usina.
 - O interior vem fechado por padrão, para não mudar a vista geral.
 
-### 12.6.2 Treetech (segunda empresa, com o PC do RabbitMQ)
+### 12.6.2 Treetech (segunda empresa, com o servidor do RabbitMQ, do Sigma e do banco)
 
 Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 9,5), com grama própria de 26 × 26 e base de concreto de 16 × 16 na mesma altura da usina, e um meio-fio verde-claro. A base fica a cerca de 2,6 unidades do chão da cidade, ao lado das torres de transmissão.
 
@@ -414,42 +422,87 @@ Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 
 - **Prédio:** 10 × 6 e 4 unidades de altura, com piso, paredes, janelas, porta e telhado com um aparelho de ar-condicionado. Abre e fecha como o escritório da usina: o clique no prédio alterna o telhado, e as paredes baixam a 30% da altura quando ele abre.
 - **Interior:** o escritório principal tem **5 mesas com PC** em duas fileiras (3 junto à parede norte e 2 no meio), **5 funcionários sentados** (um em cada mesa, em tons de verde) e **1 funcionário andando** pelo corredor entre as fileiras. A mesa central da fileira norte é a do servidor: ao lado dela fica a **torre do servidor RabbitMQ**, com uma etiqueta "RabbitMQ" e um LED verde, e o monitor dela mostra "Management", "RabbitMQ", "broker porta 5672" e "online". Os funcionários sentados movem os braços e a cabeça como quem digita, como no escritório da usina.
 - **Câmera:** o preset **Treetech** abre o telhado e mostra o interior. A Visão Geral foi afastada para enquadrar a nova empresa.
+- **Papel na cena:** a torre do servidor representa o servidor da Treetech, que roda o RabbitMQ, o Sigma ECM e o banco de dados (decisão do usuário). A fila e os bancos ficam do lado de fora, para aparecerem no tour.
 - **Ligação com o escritório da usina:** ver a seção 12.6.3.
 
-### 12.6.3 Rede simulada: PCs do escritório e RabbitMQ da Treetech
+### 12.6.3 Comunicação simulada: módulos, E3, Sync, banco e Sigma ECM
 
-Os 3 PCs do escritório da usina estão ligados ao servidor RabbitMQ da Treetech por cabos, e as mensagens aparecem como pacotes viajando por eles. Os dados são **simulados no navegador**; nada fala com um RabbitMQ real.
+Esta é a parte que explica o domínio descrito em [dominio-treetech.md](../../dominio-treetech.md). Os dados são **simulados no navegador**; nada fala com um RabbitMQ real.
 
-| RabbitMQ | No 3D |
+| Conceito | No 3D |
 |---|---|
-| PC produtor (2 deles) | Cabo que sai da torre do PC; os pacotes laranja (mensagens) viajam do PC para o servidor |
-| PC consumidor (o terceiro) | Cabo por onde os pacotes laranja vêm do servidor para o PC |
-| Conexão | O cabo cinza-escuro, com um por PC |
-| Ack | Pacote verde que volta pelo mesmo cabo: do servidor para o produtor, e do consumidor para o servidor |
-| Fila | Tubo de vidro com a etiqueta "Fila", ao lado da Treetech; a pilha de caixas laranja dentro dele é a profundidade (até 7 visíveis) |
-| Servidor | A torre dentro da Treetech; o LED pisca em branco a cada pacote que chega |
+| Módulo da Treetech (TM, BM, GMP, DM 1, DM 2) | Caixa branca com faixa verde e LED, presa a um equipamento da subestação (ver 12.6.7) |
+| Rede TCP/IP | Uma antena na subestação e outra no pátio da Treetech; arcos de luz ligam cada módulo à antena da subestação e as antenas entre si |
+| E3 | Pacote azul (pergunta) do servidor até o módulo; pacote verde (resposta) de volta |
+| Sync | Pacote laranja do módulo até a fila do RabbitMQ (tubo de vidro); o Sigma retira da fila |
+| Fila do RabbitMQ | Tubo de vidro ao lado da Treetech, em (58; 0,3; 3,4); a pilha de caixas laranja é a profundidade (até 7 visíveis) |
+| Banco de dados | Dois cilindros (PostgreSQL e SQL Server) ao lado da fila; um fica destacado em verde e a escolha alterna a cada 14 s |
+| Servidor da Treetech | A torre dentro do escritório da Treetech; o LED pisca em branco a cada pacote que chega |
+| Sigma ECM | O painel de telas da sala anexa (ver 12.6.4) |
+| Usuários do Sigma | Os PCs do escritório da usina, ligados ao servidor por cabos no chão: um pacote azul (pedido) vai e um verde (resposta) volta |
 
-- **Caminho dos cabos:** saem da torre de cada PC, correm rente ao chão até a parede leste do escritório, atravessam a parede, seguem para leste por uma faixa de grama entre a usina e a cidade e depois descem para o sul até a parede norte da Treetech, onde chegam à parte de trás da torre do servidor. Os prédios altos da usina ficam colados ao sul do escritório, por isso os cabos saem pelo lado leste. Os três cabos correm em paralelo, aninhados para não se cruzarem, e têm cerca de 35 unidades.
-- **Simulação:** cada produtor envia uma mensagem a cada 3,5 a 6,5 s. Ao chegar, a mensagem entra na fila e o servidor devolve um ack. O consumidor retira uma mensagem da fila a cada 2,5 s (ou espera 0,5 s se a fila está vazia) e devolve um ack ao receber. Os pacotes andam a 6 unidades por segundo.
-- **Câmera:** o preset **Rede** enquadra o trajeto dos cabos e a fila.
-- **Fora do que existe:** o exchange (roteamento por routing key) não tem representação própria, só uma fila. Não há dados reais, painel de métricas nem simulação de falha (broker caído, consumidor lento).
+- **Sync (modo padrão):** cada módulo envia uma atualização a cada 3 a 7 s. Ela segue o arco do módulo à antena da subestação, o arco entre as antenas e o arco da antena da Treetech à fila. O Sigma retira uma mensagem da fila a cada 0,9 s (ou espera 0,4 s se a fila está vazia) e a manda ao banco em uso; depois a informação segue até o painel.
+- **E3:** a cada 1,4 s o Sigma consulta um módulo, em rodízio. A pergunta faz o caminho inverso do Sync, até o módulo, que acende o LED; a resposta volta, é gravada no banco e aparece no painel. A fila não é usada.
+- **Troca de modo:** ao trocar entre E3 e Sync, os pacotes em trânsito são descartados e a fila é zerada, para o novo modo aparecer limpo.
+- **Velocidade:** os pacotes andam a 14 unidades por segundo nos arcos e a 6 nos cabos. Cada passo da simulação é limitado a 0,1 s, então em quadros lentos ela anda mais devagar que o relógio.
+- Os arcos de luz são um desenho esquemático da rede, não o meio físico real.
 
 ### 12.6.4 Sala do painel de telas (anexo da Treetech)
 
-Um anexo de 6 × 6 na lado oeste do escritório da Treetech, com uma base de concreto ampliada e uma parede divisória compartilhada com o escritório principal. Ele abre e fecha junto com o escritório (o mesmo telhado e as mesmas paredes baixas).
+Um anexo de 6 × 6 no lado oeste do escritório da Treetech, com base de concreto ampliada e uma parede divisória compartilhada com o escritório principal. Ele abre e fecha junto com o escritório (o mesmo telhado e as mesmas paredes baixas).
 
-- **Painel:** uma parede de **4 × 2 telas** (4,8 × 1,5 unidades) em pé sobre duas colunas, voltada para o sul. Uma única imagem de 1920 × 600 é desenhada em um canvas e cortada em 8 telas por molduras escuras.
+- **Painel:** uma parede de **4 × 2 telas** (4,8 × 1,5 unidades) sobre duas colunas, voltada para o sul. Uma imagem única de 1920 × 600 é desenhada em um canvas e dividida em 8 telas por molduras escuras.
 - **Operadores:** 2 mesas com PC e 2 funcionários sentados, virados para o painel.
-- **Dashboard ao vivo**, redesenhado a cada 0,5 s com os dados da simulação de rede (seção 12.6.3):
-  - *Mensagens / s*: taxa média das publicadas (em laranja) e das consumidas (em verde) nos últimos 5 s.
-  - *Fila*: profundidade atual, com uma barra.
-  - *Conexões*: os 3 PCs, com o papel de cada um (produtor ou consumidor).
+- **Dashboard (Sigma ECM)**, redesenhado a cada 0,5 s com os dados da simulação:
+  - *Comunicação*: o modo atual (Sync em laranja ou E3 em azul), a descrição e as leituras por segundo.
+  - *Fila RabbitMQ*: profundidade atual, com uma barra.
+  - *Módulos*: TM (temperatura do óleo, ligada à carga), BM, GMP (umidade) e DM (contatos fechados ou abertos conforme o disjuntor).
   - *Subestação*: estado do disjuntor, potência e carga, lidos da interface da subestação.
-  - *Mensagens por segundo (60 s)*: gráfico das duas séries, em duas telas de largura.
-  - *Totais*: publicadas, consumidas e acks.
-  - *Eventos*: as 6 últimas ações, com a hora (por exemplo, "PC 1 publicou", "PC 3 consumiu").
+  - *Leituras por segundo (60 s)*: gráfico das leituras recebidas e das gravadas, em duas telas de largura.
+  - *Banco de dados*: o banco em uso e os totais de leituras recebidas, gravadas e exibidas.
+  - *Eventos*: as 6 últimas ações, com a hora (por exemplo, "TM enviou (Sync)", "Sigma consultou BM (E3)", "gravado: PostgreSQL").
 - **Câmera:** o preset **Painel** abre o telhado e mostra o painel de frente.
-- **Dados simulados:** os números vêm da mesma simulação dos pacotes, não de um RabbitMQ real. Os valores só refletem o tempo real se a página renderizar em tempo real; com quadros lentos, a simulação anda mais devagar que o relógio, porque cada passo é limitado a 0,1 s.
+
+### 12.6.5 Fábrica de módulos
+
+Um galpão da Treetech ao sul da estrada, em frente à Treetech: centro em (54; 0,3; 33), com grama e base de concreto de 16 × 16 e um pátio na entrada.
+
+- **Prédio:** 14 × 8, com paredes claras e faixa verde na base, telhado de duas águas, portão de enrolar na frente (voltada para a estrada), janelas e uma placa "Treetech, Fábrica de módulos".
+- **Interior:** uma esteira de 9,4 com 7 módulos passando em ciclo, 3 funcionários na montagem (movendo os braços) e 1 supervisor andando pelo corredor da frente. Há caixas de módulos empilhadas dentro e na entrada.
+- **Abrir e fechar:** o clique no prédio alterna o telhado, como nos outros prédios; o preset **Fábrica** abre o telhado e mostra o interior.
+
+### 12.6.6 Estrada e vans
+
+- **Estrada principal:** de x = −5 a x = 65 em z = 19,5, com largura de 3,2 e faixa central tracejada, entre a Treetech (ao norte) e a fábrica (ao sul). Um **ramal** sobe pelo x = −4 até o **portão sul** da cerca da subestação, aberto na cerca (vão de 2,8). Postes de luz ficam ao longo da estrada, no lado sul.
+- **Chão de ligação:** uma faixa de grama de 80 × 11 liga a placa da subestação à Treetech e à fábrica.
+- **Vans:** duas vans brancas com faixa verde percorrem um circuito de ida e volta, em faixas separadas, a 4,5 unidades por segundo. Saem do pátio da fábrica com uma caixa de módulos no teto, vão pela faixa norte até o portão sul da subestação, dão a volta e voltam pela faixa sul, sem a caixa. As duas andam defasadas em meio circuito.
+
+### 12.6.7 Módulos instalados na subestação
+
+Caixas brancas com faixa verde e LED, com rótulos sempre visíveis:
+
+| Módulo | Onde fica |
+|---|---|
+| TM | No lado leste do tanque do transformador |
+| BM | No topo do transformador, perto das buchas |
+| GMP | No chão, a leste do transformador, ligado ao tanque por um tubo |
+| DM 1 | No lado leste do disjuntor da esquerda |
+| DM 2 | No lado leste do disjuntor da direita |
+
+### 12.6.8 Tour guiado
+
+O botão **Tour: como funciona** leva a câmera por oito passos, com um painel de texto (título e explicação, "Anterior" e "Próximo"). Cada passo posiciona a câmera, escolhe o modo de comunicação (E3 ou Sync), abre ou fecha os telhados e mostra os rótulos do passo.
+
+1. **A Treetech**: fabrica módulos e também criou o software que os monitora.
+2. **A fábrica de módulos**: o galpão com a esteira (telhado aberto).
+3. **Da fábrica à subestação**: as vans na estrada.
+4. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
+5. **Forma 1: E3 (TCP/IP)**: modo E3, vista ampla da rede.
+6. **Forma 2: Sync (RabbitMQ)**: modo Sync, vista da fila.
+7. **O banco de dados**: os dois cilindros.
+8. **Sigma ECM**: o painel de telas (telhado do escritório aberto).
+
+Ao concluir ou fechar o tour, a cena volta ao modo Sync e aos rótulos padrão (só os dos módulos).
 
 ### 12.7 Câmera, luz e sombras
 
@@ -468,6 +521,8 @@ Um anexo de 6 × 6 na lado oeste do escritório da Treetech, com uma base de con
 - O `useEffect` da cena tem lista de dependências vazia, então os botões de disjuntor e de carga não atualizam o LED dos disjuntores nem as partículas de cabo da subestação. Só a cidade reage ao disjuntor (pelo acréscimo da seção 12.4).
 - Os modos de render (raio-X, termografia) percorrem todas as malhas da cena, inclusive a cidade, a usina e as pessoas, e o modo normal não restaura as cores originais.
 - O clique para inspecionar componentes só alcança o grupo da subestação. Cidade, torres e usina não são clicáveis.
+- Os dados da comunicação são simulados no navegador, e os fatos sobre E3, Sync/RabbitMQ e PostgreSQL/SQL Server vêm só da explicação do usuário (ver [dominio-treetech.md](../../dominio-treetech.md)).
+- A cena precisa de internet, porque React, Three e Tailwind vêm de CDN.
 - O desempenho (fps) não foi medido em GPU real nem em celular.
 
 ### 12.10 Pontos em aberto

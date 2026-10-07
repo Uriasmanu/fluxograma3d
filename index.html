@@ -96,6 +96,74 @@
       )
     };
 
+    // --- Tour guiado: como a Treetech, os módulos, o E3, o Sync e o Sigma ECM se encaixam ---
+    const TOUR_STEPS = [
+      {
+        title: 'A Treetech',
+        text: 'A Treetech fabrica módulos, que são as peças instaladas na subestação e nos transformadores, e também criou o software que monitora esses módulos: o Sigma ECM.',
+        camera: { position: [100, 55, 75], target: [38, 0, 14] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['factory', 'treetech', 'substation']
+      },
+      {
+        title: 'A fábrica de módulos',
+        text: 'No galpão da Treetech os módulos são montados em uma linha de produção. Os funcionários montam as peças na esteira e as caixas saem para entrega.',
+        camera: { position: [68, 16, 47], target: [54, 1, 33] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: true },
+        labels: ['factory']
+      },
+      {
+        title: 'Da fábrica à subestação',
+        text: 'Vans levam os módulos da fábrica até a subestação e voltam vazias. É o caminho de ida e volta pela estrada, entre a Treetech e a subestação.',
+        camera: { position: [26, 42, 62], target: [26, 0, 19.5] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['vans', 'factory', 'substation']
+      },
+      {
+        title: 'Os módulos instalados',
+        text: 'Na subestação, os módulos ficam presos aos equipamentos. TM mede a temperatura do transformador, BM monitora as buchas, GMP mede gás e umidade do óleo e DM captura o estado dos contatos dos disjuntores.',
+        camera: { position: [11, 8, 11], target: [1, 1.8, 0.2] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['tm', 'bm', 'gmp', 'dm1', 'dm2']
+      },
+      {
+        title: 'Forma 1: E3 (TCP/IP)',
+        text: 'No E3, o Sigma pergunta ao módulo, por TCP/IP, se há informação nova. Os pacotes azuis são as perguntas, saindo do servidor da Treetech até o módulo, e os verdes são as respostas dos módulos.',
+        camera: { position: [78, 42, 58], target: [30, 4, 8] },
+        mode: 'e3',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['mast', 'treetech', 'substation']
+      },
+      {
+        title: 'Forma 2: Sync (RabbitMQ)',
+        text: 'No Sync, o módulo envia a atualização por conta própria. Os pacotes laranja entram na fila do RabbitMQ (o tubo de vidro) e o Sigma os retira de lá.',
+        camera: { position: [58, 11, -13], target: [58.5, 1.5, 4] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['rabbit', 'treetech']
+      },
+      {
+        title: 'O banco de dados',
+        text: 'Nas duas formas, a informação recebida é salva no banco de dados, que pode ser PostgreSQL ou SQL Server. A cena mostra os dois, e o que está em uso fica destacado em verde.',
+        camera: { position: [70, 5, 10], target: [60.9, 0.9, 3.5] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['db1', 'db2']
+      },
+      {
+        title: 'Sigma ECM',
+        text: 'Por fim, as informações aparecem no Sigma ECM, em telas como este painel da Treetech. Os usuários também acessam o Sigma pelos PCs dos escritórios, como o da usina.',
+        camera: { position: [46, 7, 17], target: [46, 2.1, 5.7] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: true, factory: false },
+        labels: ['sigma', 'plant']
+      }
+    ];
+
     // --- Componente Principal da Subestação ---
     function SubstationApp() {
       const [selectedComponent, setSelectedComponent] = useState(null);
@@ -104,6 +172,7 @@
       const [loadLevel, setLoadLevel] = useState(78); // %
       const [soundEnabled, setSoundEnabled] = useState(false);
       const [alarms, setAlarms] = useState([]);
+      const [tourStep, setTourStep] = useState(null);
 
       const audioCtxRef = useRef(null);
       const humOscRef = useRef(null);
@@ -118,6 +187,7 @@
       loadLevelRef.current = loadLevel;
       const plantRoofApiRef = useRef({ setOpen: () => {} });
       const treetechRoofApiRef = useRef({ setOpen: () => {} });
+      const sceneApiRef = useRef({ setMode: () => {}, setRoofs: () => {}, setLabels: () => {} });
 
       // Dados dos Componentes para inspeção técnica
       const componentData = {
@@ -246,7 +316,7 @@
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
 
         // Vista Isométrica inicial idêntica à foto
-        camera.position.set(105, 72, 70);
+        camera.position.set(109, 75, 84);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -265,7 +335,7 @@
         controls.maxPolarAngle = Math.PI / 2 - 0.02; // Não atravessar o chão
         controls.minDistance = 5;
         controls.maxDistance = 220;
-        controls.target.set(29, 0, -7);
+        controls.target.set(29, 0, 4);
         controlsRef.current = controls;
 
         // Iluminação Ambientes e Sol
@@ -357,16 +427,20 @@
           // Portão no lado leste (para a usina): vão entre gateZ - gateHalf e gateZ + gateHalf
           const gateZ = 0.35;
           const gateHalf = 1.4;
+          // Portão no lado sul, na ponta da estrada das vans
+          const southGateX = -4;
 
           // Postes de Canto e Intermediários
           const postGeo = new THREE.CylinderGeometry(0.06, 0.06, height);
           const fencePositions = [];
 
           for (let i = pMin; i <= pMax; i += 1.83) {
-            fencePositions.push([i, pMin], [i, pMax], [pMin, i]);
+            fencePositions.push([i, pMin], [pMin, i]);
+            if (Math.abs(i - southGateX) > gateHalf) fencePositions.push([i, pMax]);
             if (Math.abs(i - gateZ) > gateHalf) fencePositions.push([pMax, i]);
           }
           fencePositions.push([pMax, gateZ - gateHalf], [pMax, gateZ + gateHalf]);
+          fencePositions.push([southGateX - gateHalf, pMax], [southGateX + gateHalf, pMax]);
 
           fencePositions.forEach(([x, z]) => {
             const post = new THREE.Mesh(postGeo, matFence);
@@ -390,7 +464,8 @@
           const heights = [0.5, 1.2, 1.9];
           heights.forEach(h => {
             createRail(pMin, pMin, pMax, pMin, h);
-            createRail(pMin, pMax, pMax, pMax, h);
+            createRail(pMin, pMax, southGateX - gateHalf, pMax, h);
+            createRail(southGateX + gateHalf, pMax, pMax, pMax, h);
             createRail(pMin, pMin, pMin, pMax, h);
             createRail(pMax, pMin, pMax, gateZ - gateHalf, h);
             createRail(pMax, gateZ + gateHalf, pMax, pMax, h);
@@ -1096,6 +1171,34 @@
           createCatenaryWire(poleHooks[2], poleHooks[3], 0.8, 0x6f9aa8)
         );
 
+        // Postes de luz ao longo das ruas: haste, braço voltado para a rua e luminária acesa
+        const streetPoleMat = new THREE.MeshStandardMaterial({ color: '#8a949e', roughness: 0.5, metalness: 0.4 });
+        const streetLampMat = new THREE.MeshStandardMaterial({ color: '#f3e6a8', emissive: '#f3e6a8', emissiveIntensity: 1.0, roughness: 0.4 });
+        const streetLamps = [
+          [-6.5, -3.1, 1], [-6.5, 3.1, -1], [1, -3.1, 1], [1, 3.1, -1],
+          [16.5, -3.1, 1], [16.5, 3.1, -1], [22.5, -3.1, 1], [22.5, 3.1, -1],
+          [6, -15, 1], [10, -15, 1], [6, 12.5, -1], [10, 12.5, -1]
+        ];
+        streetLamps.forEach(([lx, lz, toward]) => {
+          const lamp = new THREE.Group();
+          lamp.position.set(lx, 0, lz);
+
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.2, 8), streetPoleMat);
+          post.position.y = 2.1;
+          post.castShadow = true;
+          lamp.add(post);
+
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.0), streetPoleMat);
+          arm.position.set(0, 4.15, toward * 0.5);
+          lamp.add(arm);
+
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.5), streetLampMat);
+          head.position.set(0, 4.08, toward * 1.0);
+          lamp.add(head);
+
+          cityWorld.add(lamp);
+        });
+
         housePlots.forEach((hp, idx) => {
           const houseHook = new THREE.Vector3(hp.x, hp.stories === 2 ? 4.2 : 2.8, hp.z);
           createCatenaryWire(poleHooks[idx], houseHook, 0.4, 0x475569);
@@ -1746,8 +1849,367 @@
 
         buildTreetech();
 
-        // 13. REDE SIMULADA: PCs DO ESCRITÓRIO -> RABBITMQ DA TREETECH
-        // Dois PCs publicam, um consome; os pacotes laranja são mensagens e os verdes são acks
+        // 13. FÁBRICA, ESTRADA COM VANS, MÓDULOS, ANTENAS E BANCOS DE DADOS
+        const BRAND_GREEN = '#2f9e5e';
+
+        // Rótulos: os dos módulos ficam sempre visíveis; os demais aparecem no tour
+        const labelSprites = {};
+        const ALWAYS_LABELS = ['tm', 'bm', 'gmp', 'dm1', 'dm2'];
+        const addLabel = (key, text, x, y, z, width = 4.4) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 128;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = 'rgba(15, 23, 32, 0.9)';
+          ctx.fillRect(0, 0, 512, 128);
+          ctx.fillStyle = BRAND_GREEN;
+          ctx.fillRect(0, 0, 14, 128);
+          ctx.fillStyle = '#eef2f5';
+          ctx.textBaseline = 'middle';
+          let size = 50;
+          ctx.font = `bold ${size}px Arial, sans-serif`;
+          while (ctx.measureText(text).width > 456 && size > 20) {
+            size -= 2;
+            ctx.font = `bold ${size}px Arial, sans-serif`;
+          }
+          ctx.fillText(text, 32, 66);
+
+          const sprite = new THREE.Sprite(
+            new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), depthTest: false, transparent: true })
+          );
+          sprite.scale.set(width, width / 4, 1);
+          sprite.position.set(x, y, z);
+          sprite.renderOrder = 10;
+          scene.add(sprite);
+          labelSprites[key] = sprite;
+        };
+        const setLabels = (keys) => {
+          const visible = new Set(keys || ALWAYS_LABELS);
+          Object.keys(labelSprites).forEach(key => {
+            labelSprites[key].visible = visible.has(key);
+          });
+        };
+
+        const addSlab = (parent, w, h, d, material, x, y, z, shadows = true) => {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+          mesh.position.set(x, y, z);
+          mesh.receiveShadow = true;
+          mesh.castShadow = shadows;
+          parent.add(mesh);
+          return mesh;
+        };
+
+        // Terreno de ligação e estrada: principal ao longo da Treetech e ramal até o portão sul da subestação
+        const asphaltMat = new THREE.MeshStandardMaterial({ color: '#4a5568', roughness: 0.85 });
+        const roadLineMat = new THREE.MeshStandardMaterial({ color: '#d8d2b4', roughness: 0.6 });
+        addSlab(scene, 80, 0.4, 11, matGrass, 27, -0.22, 18.5, false);
+        addSlab(scene, 70, 0.06, 3.2, asphaltMat, 30, 0.03, 19.5, false);
+        addSlab(scene, 3.2, 0.06, 11.7, asphaltMat, -4, 0.03, 13.65, false);
+        addSlab(scene, 4.4, 0.06, 3.7, asphaltMat, 54, 0.03, 22.9, false);
+        for (let x = -3; x <= 63; x += 3) addSlab(scene, 1.4, 0.07, 0.12, roadLineMat, x, 0.035, 19.5, false);
+        for (let z = 9.5; z <= 17.5; z += 3) addSlab(scene, 0.12, 0.07, 1.4, roadLineMat, -4, 0.035, z, false);
+
+        [2, 14, 26, 38, 49, 60].forEach(lx => {
+          const lamp = new THREE.Group();
+          lamp.position.set(lx, 0, 21.9);
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.2, 8), streetPoleMat);
+          post.position.y = 2.1;
+          post.castShadow = true;
+          lamp.add(post);
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.0), streetPoleMat);
+          arm.position.set(0, 4.15, -0.5);
+          lamp.add(arm);
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.5), streetLampMat);
+          head.position.set(0, 4.08, -1.0);
+          lamp.add(head);
+          scene.add(lamp);
+        });
+
+        // Módulos da Treetech instalados nos equipamentos da subestação
+        const moduleBodyMat = new THREE.MeshStandardMaterial({ color: '#e8ecef', roughness: 0.5 });
+        const moduleStripeMat = new THREE.MeshStandardMaterial({ color: BRAND_GREEN, roughness: 0.5 });
+        const moduleNodes = {};
+
+        const createModuleGroup = (scale) => {
+          const group = new THREE.Group();
+          addSlab(group, 0.34, 0.26, 0.2, moduleBodyMat, 0, 0, 0);
+          addSlab(group, 0.34, 0.05, 0.21, moduleStripeMat, 0, 0.105, 0, false);
+          const led = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: '#6fbf8a' }));
+          led.position.set(0.1, -0.02, 0.105);
+          group.add(led);
+          group.scale.setScalar(scale);
+          return { group, led };
+        };
+
+        const placeModule = (key, label, x, y, z, rotY, scale) => {
+          const { group, led } = createModuleGroup(scale);
+          group.position.set(x, y, z);
+          group.rotation.y = rotY;
+          scene.add(group);
+          moduleNodes[key] = { group, led, flash: 0, top: new THREE.Vector3(x, y + 0.2 * scale, z) };
+          addLabel(key, label, x, y + 0.6 + 0.1 * scale, z, 1.15);
+        };
+
+        placeModule('tm', 'TM', 1.76, 1.9, 0.35, Math.PI / 2, 1.6);
+        placeModule('bm', 'BM', 1.2, 2.71, 0.95, 0, 1.6);
+        placeModule('gmp', 'GMP', 2.5, 0.64, -1.3, Math.PI / 2, 2.2);
+        placeModule('dm1', 'DM 1', -3.34, 0.95, -1.0, Math.PI / 2, 1.6);
+        placeModule('dm2', 'DM 2', 5.06, 0.95, 1.5, Math.PI / 2, 1.6);
+
+        const gmpPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.7, 8), matSteel);
+        gmpPipe.rotation.z = Math.PI / 2;
+        gmpPipe.position.set(1.95, 0.75, -1.3);
+        scene.add(gmpPipe);
+
+        // Antenas da rede (TCP/IP): uma na subestação e outra no pátio da Treetech
+        const createMast = (x, y, z, height) => {
+          const group = new THREE.Group();
+          group.position.set(x, y, z);
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, height, 8), streetPoleMat);
+          pole.position.y = height / 2;
+          pole.castShadow = true;
+          group.add(pole);
+          const dish = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), moduleBodyMat);
+          dish.position.set(0, height - 0.2, 0.1);
+          dish.rotation.x = Math.PI / 2;
+          group.add(dish);
+          const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), new THREE.MeshBasicMaterial({ color: BRAND_GREEN }));
+          beacon.position.y = height + 0.25;
+          group.add(beacon);
+          scene.add(group);
+          return { group, top: new THREE.Vector3(x, y + height + 0.25, z) };
+        };
+        const mastSub = createMast(2.8, 0.345, 5.3, 5.5);
+        const mastTt = createMast(60.8, 0.3, 7.5, 6.0);
+
+        // Bancos de dados: PostgreSQL e SQL Server, lado a lado, ao lado da fila do RabbitMQ
+        const DB_NAMES = ['PostgreSQL', 'SQL Server'];
+        const dbNodes = DB_NAMES.map((name, i) => {
+          const dbZ = 2.6 + i * 1.9;
+          const group = new THREE.Group();
+          group.position.set(60.9, 0.3, dbZ);
+          const dbMat = new THREE.MeshStandardMaterial({ color: '#cfd6dc', roughness: 0.5 });
+          addSlab(group, 1.3, 0.12, 1.3, moduleBodyMat, 0, 0.06, 0);
+          for (let d = 0; d < 3; d++) {
+            const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.28, 24), dbMat);
+            disc.position.y = 0.32 + d * 0.36;
+            disc.castShadow = true;
+            group.add(disc);
+          }
+          scene.add(group);
+          addLabel(`db${i + 1}`, name, 60.9, 2.5, dbZ, 1.8);
+          return { name, group, mat: dbMat, top: new THREE.Vector3(60.9, 1.5, dbZ) };
+        });
+
+        // Fábrica de módulos da Treetech: galpão com linha de produção, funcionários e caixas de módulos
+        const factoryRoof = { open: false, amount: 0, walls: null, roof: null, hit: null };
+        roofToggles.push(factoryRoof);
+        const factoryWorld = new THREE.Group();
+        factoryWorld.position.set(54, 0.3, 33);
+        scene.add(factoryWorld);
+        const factoryBelt = [];
+        const factoryWorkers = [];
+        const factoryWalker = { group: null, path: null };
+
+        const buildFactory = () => {
+          const mat = (color, roughness = 0.6) => new THREE.MeshStandardMaterial({ color, roughness });
+          const wallMat = mat('#cfd6dc');
+          const roofMat = mat('#6b7d73');
+          const doorMat = mat('#5a6772');
+          const glassMat = mat('#7f98aa', 0.3);
+          const crateMat = mat('#c9b89a');
+
+          addSlab(factoryWorld, 26, 0.4, 26, matGrass, 0, -0.51, 0, false);
+          addSlab(factoryWorld, 16, 0.6, 16, mat('#c9ccce', 0.8), 0, -0.3, 0, false);
+          addSlab(factoryWorld, 16.6, 0.1, 16.6, mat('#7aa58a', 0.8), 0, -0.06, 0, false);
+
+          const building = new THREE.Group();
+          factoryWorld.add(building);
+          addSlab(building, 14, 0.1, 8, mat('#d8d6d0', 0.8), 0, 0.05, 0, false);
+
+          const wallH = 4.2;
+          const walls = new THREE.Group();
+          walls.position.y = 0.1;
+          addSlab(walls, 14, wallH, 0.25, wallMat, 0, wallH / 2, -3.875);
+          addSlab(walls, 14, wallH, 0.25, wallMat, 0, wallH / 2, 3.875);
+          addSlab(walls, 0.25, wallH, 7.5, wallMat, -6.875, wallH / 2, 0);
+          addSlab(walls, 0.25, wallH, 7.5, wallMat, 6.875, wallH / 2, 0);
+          addSlab(walls, 14.02, 0.4, 0.27, moduleStripeMat, 0, 0.5, -3.875, false);
+          addSlab(walls, 14.02, 0.4, 0.27, moduleStripeMat, 0, 0.5, 3.875, false);
+
+          const gableShape = new THREE.Shape([new THREE.Vector2(-4.1, 0), new THREE.Vector2(4.1, 0), new THREE.Vector2(0, 2.2)]);
+          const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: 0.25, bevelEnabled: false });
+          gableGeo.rotateY(Math.PI / 2);
+          [6.75, -7.0].forEach(gx => {
+            const gable = new THREE.Mesh(gableGeo, wallMat);
+            gable.position.set(gx, wallH, 0);
+            gable.castShadow = true;
+            walls.add(gable);
+          });
+
+          addSlab(walls, 3.6, 3.4, 0.08, doorMat, 0, 1.7, -4.04, false);
+          [-4.5, -1.5, 1.5, 4.5].forEach(wx => addSlab(walls, 1.6, 1.0, 0.04, glassMat, wx, 2.2, 4.02, false));
+
+          const signCanvas = document.createElement('canvas');
+          signCanvas.width = 1024;
+          signCanvas.height = 160;
+          const signCtx = signCanvas.getContext('2d');
+          signCtx.fillStyle = '#f4f7f5';
+          signCtx.fillRect(0, 0, 1024, 160);
+          signCtx.fillStyle = BRAND_GREEN;
+          signCtx.fillRect(0, 0, 18, 160);
+          signCtx.font = 'bold 84px Arial, sans-serif';
+          signCtx.textBaseline = 'middle';
+          signCtx.fillText('Treetech', 50, 82);
+          signCtx.fillStyle = '#5a6772';
+          signCtx.font = '48px Arial, sans-serif';
+          signCtx.fillText('Fábrica de módulos', 450, 86);
+          const factorySign = new THREE.Mesh(
+            new THREE.PlaneGeometry(6, 0.94),
+            new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signCanvas) })
+          );
+          factorySign.position.set(0, 3.75, -4.06);
+          factorySign.rotation.y = Math.PI;
+          walls.add(factorySign);
+          building.add(walls);
+
+          const roof = new THREE.Group();
+          const slope = Math.atan2(2.2, 4.2);
+          [-1, 1].forEach(side => {
+            const panel = addSlab(roof, 14.8, 0.18, 5.15, roofMat, 0, 0.1 + wallH + 1.15, side * 2.1);
+            panel.rotation.x = side * slope;
+          });
+          addSlab(roof, 14.8, 0.16, 0.3, roofMat, 0, 0.1 + wallH + 2.3, 0);
+          building.add(roof);
+
+          // Interior: esteira com módulos, três funcionários na montagem e um supervisor andando
+          const furniture = new THREE.Group();
+          furniture.position.y = 0.1;
+          building.add(furniture);
+
+          const metalMat = mat('#8a949e', 0.5);
+          addSlab(furniture, 9.4, 0.1, 0.9, mat('#5a6772', 0.7), 0, 0.85, 0);
+          addSlab(furniture, 9.4, 0.08, 0.06, metalMat, 0, 0.97, -0.46, false);
+          addSlab(furniture, 9.4, 0.08, 0.06, metalMat, 0, 0.97, 0.46, false);
+          [-4.3, -1.4, 1.4, 4.3].forEach(lx => addSlab(furniture, 0.12, 0.8, 0.8, metalMat, lx, 0.4, 0));
+
+          for (let i = 0; i < 7; i++) {
+            const { group } = createModuleGroup(1.4);
+            group.position.set(-4.7 + i * 1.3, 1.08, 0);
+            furniture.add(group);
+            factoryBelt.push(group);
+          }
+
+          [-3, 0, 3].forEach((wx, i) => {
+            const worker = createWorker(['#7fa88c', '#9db8a4', '#6f9a82'][i]);
+            worker.position.set(wx, 0.1, 1.15);
+            worker.rotation.y = Math.PI;
+            worker.userData.leftLeg.rotation.x = 0;
+            building.add(worker);
+            factoryWorkers.push({ group: worker, phase: i * 1.7 });
+          });
+
+          const supervisor = createWorker('#9aa7b8');
+          supervisor.position.set(-5.5, 0.1, -2.6);
+          building.add(supervisor);
+          factoryWalker.group = supervisor;
+          factoryWalker.path = makePath([[-5.5, -2.6], [5.5, -2.6]], 'pingpong');
+
+          [[-6.0, 0.35, 2.8], [-5.2, 0.35, 2.8], [-5.6, 0.95, 2.8], [6.0, 0.35, -2.6], [5.2, 0.35, -2.6]].forEach(([cx, cy, cz]) => {
+            addSlab(furniture, 0.7, 0.55, 0.7, crateMat, cx, cy, cz);
+          });
+
+          [[-5.4, 0.3, -5.5], [-4.5, 0.3, -5.5], [-5.0, 0.9, -5.5], [5.4, 0.3, -5.5]].forEach(([cx, cy, cz]) => {
+            addSlab(factoryWorld, 0.8, 0.6, 0.8, crateMat, cx, cy, cz);
+          });
+
+          factoryRoof.walls = walls;
+          factoryRoof.roof = roof;
+          factoryRoof.hit = building;
+        };
+        buildFactory();
+
+        // Vans da Treetech: saem da fábrica carregadas, vão até o portão da subestação e voltam vazias
+        const vans = [];
+        const buildVans = () => {
+          const path = makePath(
+            [[54, 23.0], [54, 18.5], [-3.2, 18.5], [-3.2, 9.8], [-4.8, 9.8], [-4.8, 20.5], [54, 20.5]],
+            'loop'
+          );
+          const deliveredAt = path.segs[3].start + path.segs[3].len;
+          const bodyMat = new THREE.MeshStandardMaterial({ color: '#e8ecef', roughness: 0.5 });
+          const wheelMat = new THREE.MeshStandardMaterial({ color: '#2b323a', roughness: 0.8 });
+          const glass = new THREE.MeshStandardMaterial({ color: '#7f98aa', roughness: 0.3 });
+          const crateMat = new THREE.MeshStandardMaterial({ color: '#c9b89a', roughness: 0.7 });
+
+          [0, path.total / 2].forEach(offset => {
+            const group = new THREE.Group();
+            addSlab(group, 1.0, 0.8, 2.0, bodyMat, 0, 0.62, -0.15);
+            addSlab(group, 0.95, 0.6, 0.75, bodyMat, 0, 0.52, 1.0);
+            addSlab(group, 0.96, 0.18, 0.5, glass, 0, 0.8, 1.05, false);
+            addSlab(group, 1.02, 0.14, 2.1, moduleStripeMat, 0, 0.5, -0.1, false);
+            [[-0.5, 0.7], [0.5, 0.7], [-0.5, -0.7], [0.5, -0.7]].forEach(([wx, wz]) => {
+              const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.16, 12), wheelMat);
+              wheel.rotation.z = Math.PI / 2;
+              wheel.position.set(wx, 0.22, wz);
+              group.add(wheel);
+            });
+            const crate = new THREE.Group();
+            addSlab(crate, 0.8, 0.5, 0.9, crateMat, 0, 1.27, -0.3);
+            addSlab(crate, 0.82, 0.08, 0.92, moduleStripeMat, 0, 1.3, -0.3, false);
+            group.add(crate);
+            scene.add(group);
+            vans.push({ group, crate, path, speed: 4.5, offset, deliveredAt });
+          });
+        };
+        buildVans();
+
+        const updateWorld = (time) => {
+          vans.forEach(van => {
+            const travelled = time * van.speed + van.offset;
+            const s = samplePath(van.path, travelled);
+            van.group.position.set(s.x, 0.06, s.z);
+            van.group.rotation.y = s.heading;
+            const along = ((travelled % van.path.total) + van.path.total) % van.path.total;
+            van.crate.visible = along < van.deliveredAt;
+          });
+
+          factoryBelt.forEach((module, i) => {
+            module.position.x = ((time * 0.6 + i * 1.3) % 9.1) - 4.55;
+          });
+
+          factoryWorkers.forEach(worker => {
+            const t = time + worker.phase;
+            const parts = worker.group.userData;
+            parts.leftArm.rotation.x = -0.9 + Math.sin(t * 3) * 0.25;
+            parts.rightArm.rotation.x = -0.9 + Math.sin(t * 3 + 1.2) * 0.25;
+          });
+
+          if (factoryWalker.group) {
+            const travelled = time * 0.8;
+            const s = samplePath(factoryWalker.path, travelled);
+            factoryWalker.group.position.set(s.x, 0.1, s.z);
+            factoryWalker.group.rotation.y = s.heading;
+            const swing = Math.sin(travelled * 4.5) * 0.7;
+            const parts = factoryWalker.group.userData;
+            parts.leftLeg.rotation.x = swing;
+            parts.rightLeg.rotation.x = -swing;
+            parts.leftArm.rotation.x = -swing * 0.8;
+            parts.rightArm.rotation.x = swing * 0.8;
+          }
+        };
+
+        addLabel('factory', 'Fábrica de módulos', 54, 9.2, 33, 5.2);
+        addLabel('treetech', 'Treetech: RabbitMQ, Sigma e banco', 54, 7.6, 8, 6.6);
+        addLabel('substation', 'Subestação (módulos instalados)', 0, 9.5, 0, 6.4);
+        addLabel('vans', 'Vans levam os módulos', 28, 3.6, 19.5, 4.6);
+        addLabel('plant', 'Usuários do Sigma (PCs)', 20.3, 9.5, -1.5, 5.2);
+        addLabel('sigma', 'Sigma ECM', 46, 4.7, 5.8, 2.0);
+        addLabel('rabbit', 'RabbitMQ', 58, 3.4, 3.4, 1.7);
+        addLabel('mast', 'Rede TCP/IP', 2.8, 7.4, 5.3, 2.4);
+        setLabels(null);
+
+        // 14. COMUNICAÇÃO SIMULADA: E3 (CONSULTA), SYNC (RABBITMQ), BANCO DE DADOS E SIGMA ECM
         const plantToWorld = (x, y, z) => new THREE.Vector3(16.4 - x, 0.3 + y, -z);
 
         const netCableMat = new THREE.MeshStandardMaterial({ color: '#5b6772', roughness: 0.5 });
@@ -1774,12 +2236,13 @@
           }
         };
 
-        // Cada cabo sai da torre do PC, corre rente ao chão até a parede leste, segue para leste e entra na Treetech
+        // PCs do escritório da usina: usuários do Sigma ECM, ligados ao servidor da Treetech por cabo
         const serverX = TREETECH_POS.x + 1.7;
+        const serverTop = new THREE.Vector3(serverX, 1.5, TREETECH_POS.z - 3.7);
         const netCables = [
-          { role: 'producer', label: 'PC 1', towerX: -3.9, laneZ: 0.25, finalX: serverX + 0.2 },
-          { role: 'producer', label: 'PC 2', towerX: -2.1, laneZ: 0.15, finalX: serverX },
-          { role: 'consumer', label: 'PC 3', towerX: -0.3, laneZ: 0.05, finalX: serverX - 0.2 }
+          { label: 'PC 1', towerX: -3.9, laneZ: 0.25, finalX: serverX + 0.2 },
+          { label: 'PC 2', towerX: -2.1, laneZ: 0.15, finalX: serverX },
+          { label: 'PC 3', towerX: -0.3, laneZ: 0.05, finalX: serverX - 0.2 }
         ].map(def => {
           const points = [
             plantToWorld(def.towerX, 0.35, 0.45),
@@ -1797,13 +2260,10 @@
             length += points[i].distanceTo(points[i + 1]);
             lengths.push(length);
           }
-          return { role: def.role, label: def.label, points, lengths, length };
+          return { label: def.label, points, lengths, length };
         });
 
-        const producerCables = netCables.filter(cable => cable.role === 'producer');
-        const consumerCable = netCables.find(cable => cable.role === 'consumer');
-
-        // Fila: tubo de vidro ao lado da Treetech; a altura da pilha é a profundidade da fila
+        // Fila do RabbitMQ: tubo de vidro ao lado da Treetech; a altura da pilha é a profundidade
         const MAX_QUEUE_BOXES = 7;
         const queueGroup = new THREE.Group();
         queueGroup.position.set(TREETECH_POS.x + 4, 0.3, TREETECH_POS.z - 6.1);
@@ -1823,45 +2283,69 @@
         queueGroup.add(queueCap);
 
         const packetGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const packetMsgMat = new THREE.MeshBasicMaterial({ color: '#d9783a' });
-        const packetAckMat = new THREE.MeshBasicMaterial({ color: '#6fbf8a' });
+        const packetMats = {
+          msg: new THREE.MeshBasicMaterial({ color: '#d9783a' }),
+          query: new THREE.MeshBasicMaterial({ color: '#6ea8c0' }),
+          answer: new THREE.MeshBasicMaterial({ color: '#6fbf8a' })
+        };
 
         const queueBoxes = [];
         for (let i = 0; i < MAX_QUEUE_BOXES; i++) {
-          const queued = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.22, 0.4), packetMsgMat);
+          const queued = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.22, 0.4), packetMats.msg);
           queued.position.y = 0.25 + i * 0.26;
           queued.visible = false;
           queueGroup.add(queued);
           queueBoxes.push(queued);
         }
 
-        const queueLabelCanvas = document.createElement('canvas');
-        queueLabelCanvas.width = 256;
-        queueLabelCanvas.height = 80;
-        const queueCtx = queueLabelCanvas.getContext('2d');
-        queueCtx.fillStyle = '#e8ecef';
-        queueCtx.fillRect(0, 0, 256, 80);
-        queueCtx.fillStyle = '#d9783a';
-        queueCtx.fillRect(0, 0, 14, 80);
-        queueCtx.fillStyle = '#2b323a';
-        queueCtx.font = 'bold 40px Arial, sans-serif';
-        queueCtx.textBaseline = 'middle';
-        queueCtx.fillText('Fila', 34, 42);
-        const queueLabel = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.0, 0.31),
-          new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(queueLabelCanvas), side: THREE.DoubleSide })
-        );
-        queueLabel.position.y = 2.45;
-        queueGroup.add(queueLabel);
-
-        // Simulação: publicadores enviam em intervalos aleatórios; o consumidor retira da fila a cada 2,5 s
-        const NET_SPEED = 6;
-        const net = {
-          last: 0, depth: 0, flash: 0, nextPublish: [1.5, 3.5], nextConsume: 6,
-          published: 0, consumed: 0, acks: 0, pubBucket: 0, consBucket: 0,
-          nextTick: 1, nextDraw: 0, history: { pub: [], cons: [] }, events: []
+        // Arcos de comunicação: módulo -> antena da subestação -> antena da Treetech -> servidor, fila, banco e painel
+        const arcLineMat = new THREE.LineBasicMaterial({ color: '#9aa7b2', transparent: true, opacity: 0.6 });
+        const makeArc = (a, b, lift) => {
+          const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+          mid.y += lift;
+          const points = new THREE.QuadraticBezierCurve3(a.clone(), mid, b.clone()).getPoints(32);
+          const lengths = [];
+          let length = 0;
+          for (let i = 0; i < points.length - 1; i++) {
+            length += points[i].distanceTo(points[i + 1]);
+            lengths.push(length);
+          }
+          const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), arcLineMat.clone());
+          scene.add(line);
+          return { points, lengths, length, line };
         };
-        const packets = [];
+
+        const moduleKeys = ['tm', 'bm', 'gmp', 'dm1', 'dm2'];
+        const moduleLabels = { tm: 'TM', bm: 'BM', gmp: 'GMP', dm1: 'DM 1', dm2: 'DM 2' };
+        const arcModule = {};
+        moduleKeys.forEach(key => {
+          arcModule[key] = makeArc(moduleNodes[key].top, mastSub.top, 2.2);
+        });
+        const queueTop = new THREE.Vector3(queueGroup.position.x, 2.4, queueGroup.position.z);
+        const dashboardPoint = new THREE.Vector3(46, 2.2, 6.0);
+        const arcLink = makeArc(mastSub.top, mastTt.top, 16);
+        const arcServer = makeArc(mastTt.top, serverTop, 3);
+        const arcQueueIn = makeArc(mastTt.top, queueTop, 2);
+        const arcQueueOut = makeArc(queueTop, serverTop, 2.5);
+        const arcDb = dbNodes.map(db => makeArc(serverTop, db.top, 2.5));
+        const arcSigma = dbNodes.map(db => makeArc(db.top, dashboardPoint, 5));
+
+        const net = {
+          last: 0, mode: 'sync', depth: 0, flash: 0, activeDb: 0,
+          received: 0, saved: 0, shown: 0, recvBucket: 0, savedBucket: 0,
+          nextTick: 1, nextDraw: 0, nextConsume: 6, nextPoll: 1, pollIndex: 0, nextDbSwitch: 14,
+          nextSend: [1, 2, 3, 4, 5], nextUser: [2, 5, 8],
+          history: { recv: [], saved: [] }, events: []
+        };
+
+        const applyMode = () => {
+          const sync = net.mode === 'sync';
+          arcQueueIn.line.visible = sync;
+          arcQueueOut.line.visible = sync;
+          arcDb.forEach((arc, i) => { arc.line.material.opacity = i === net.activeDb ? 0.7 : 0.15; });
+          arcSigma.forEach((arc, i) => { arc.line.material.opacity = i === net.activeDb ? 0.7 : 0.15; });
+          dbNodes.forEach((db, i) => db.mat.color.set(i === net.activeDb ? '#9fc9ad' : '#cfd6dc'));
+        };
 
         const cablePoint = (cable, dist) => {
           const d = Math.min(Math.max(dist, 0), cable.length);
@@ -1873,16 +2357,6 @@
           return new THREE.Vector3().lerpVectors(cable.points[i], cable.points[i + 1], t);
         };
 
-        // dir = 1 vai do PC para o servidor; dir = -1 vai do servidor para o PC
-        const spawnPacket = (cable, dir, kind) => {
-          const mesh = new THREE.Mesh(packetGeo, kind === 'ack' ? packetAckMat : packetMsgMat);
-          const dist = dir > 0 ? 0 : cable.length;
-          mesh.position.copy(cablePoint(cable, dist));
-          mesh.position.y += 0.12;
-          scene.add(mesh);
-          packets.push({ mesh, cable, dir, kind, dist });
-        };
-
         const formatClock = (time) =>
           `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(Math.floor(time % 60)).padStart(2, '0')}`;
 
@@ -1891,16 +2365,100 @@
           net.events.length = Math.min(net.events.length, 6);
         };
 
-        // Dashboard do painel de telas: um quadro único de 1920 x 600, dividido em 4 x 2 telas por moldura escura
+        // Um pacote percorre uma lista de trechos (dir = 1 segue o trecho; dir = -1 volta por ele)
+        const journeys = [];
+        const enterStep = (journey) => {
+          const step = journey.steps[journey.index];
+          journey.mesh.material = packetMats[step.kind] || packetMats.msg;
+          journey.mesh.scale.setScalar(step.scale || 1.5);
+          journey.dist = step.dir > 0 ? 0 : step.path.length;
+        };
+        const startJourney = (steps) => {
+          const mesh = new THREE.Mesh(packetGeo, packetMats.msg);
+          scene.add(mesh);
+          const journey = { mesh, steps, index: 0, dist: 0 };
+          enterStep(journey);
+          journeys.push(journey);
+        };
+
+        const flashModule = (key) => { moduleNodes[key].flash = 0.3; };
+
+        // Depois de recebida (Sync ou E3), a informação é gravada no banco e aparece no Sigma ECM
+        const saveAndShowSteps = (kind) => {
+          const db = net.activeDb;
+          return [
+            {
+              path: arcDb[db], dir: 1, kind,
+              done: (time) => { net.saved += 1; net.savedBucket += 1; logEvent(time, `gravado: ${DB_NAMES[db]}`); }
+            },
+            { path: arcSigma[db], dir: 1, kind, scale: 1.0, done: () => { net.shown += 1; } }
+          ];
+        };
+
+        const sendSync = (key) => {
+          startJourney([
+            { path: arcModule[key], dir: 1, kind: 'msg', done: () => flashModule(key) },
+            { path: arcLink, dir: 1, kind: 'msg' },
+            {
+              path: arcQueueIn, dir: 1, kind: 'msg',
+              done: (time) => {
+                net.depth = Math.min(net.depth + 1, 99);
+                net.received += 1;
+                net.recvBucket += 1;
+                logEvent(time, `${moduleLabels[key]} enviou (Sync)`);
+              }
+            }
+          ]);
+        };
+
+        const consumeQueue = () => {
+          net.depth -= 1;
+          startJourney([
+            { path: arcQueueOut, dir: 1, kind: 'msg', done: (time) => { net.flash = 0.25; logEvent(time, 'Sigma tirou da fila'); } },
+            ...saveAndShowSteps('msg')
+          ]);
+        };
+
+        const pollE3 = (key) => {
+          startJourney([
+            { path: arcServer, dir: -1, kind: 'query' },
+            { path: arcLink, dir: -1, kind: 'query' },
+            {
+              path: arcModule[key], dir: -1, kind: 'query',
+              done: (time) => { flashModule(key); logEvent(time, `Sigma consultou ${moduleLabels[key]} (E3)`); }
+            },
+            { path: arcModule[key], dir: 1, kind: 'answer' },
+            { path: arcLink, dir: 1, kind: 'answer' },
+            {
+              path: arcServer, dir: 1, kind: 'answer',
+              done: () => { net.flash = 0.25; net.received += 1; net.recvBucket += 1; }
+            },
+            ...saveAndShowSteps('answer')
+          ]);
+        };
+
+        const userSession = (cable) => {
+          startJourney([
+            { path: cable, dir: 1, kind: 'query', scale: 1, speed: 6 },
+            {
+              path: cable, dir: -1, kind: 'answer', scale: 1, speed: 6,
+              done: (time) => logEvent(time, `${cable.label} abriu o Sigma ECM`)
+            }
+          ]);
+        };
+
+        // Dashboard do painel de telas: uma imagem de 1920 x 600 dividida em 4 x 2 telas por molduras escuras
         const drawDashboard = () => {
           const { ctx, texture, width: W, height: H } = treetechDashboard;
           if (!ctx) return;
           const tileW = W / 4;
           const tileH = H / 2;
           const orange = '#d9783a';
+          const blue = '#6ea8c0';
           const green = '#6fbf8a';
           const grey = '#8aa0b2';
           const white = '#eef2f5';
+          const sync = net.mode === 'sync';
 
           ctx.fillStyle = '#0f1720';
           ctx.fillRect(0, 0, W, H);
@@ -1916,15 +2474,16 @@
             return last.length ? last.reduce((sum, v) => sum + v, 0) / last.length : 0;
           };
 
-          title('Mensagens / s', 0, 0);
-          ctx.fillStyle = orange;
+          title('Sigma ECM  |  Comunicação', 0, 0);
+          ctx.fillStyle = sync ? orange : blue;
           ctx.font = 'bold 120px Arial, sans-serif';
-          ctx.fillText(avg(net.history.pub, 5).toFixed(1), 28, 70);
-          ctx.fillStyle = green;
-          ctx.font = '32px Arial, sans-serif';
-          ctx.fillText(`consumidas ${avg(net.history.cons, 5).toFixed(1)}`, 28, 225);
+          ctx.fillText(sync ? 'Sync' : 'E3', 28, 70);
+          ctx.fillStyle = grey;
+          ctx.font = '30px Arial, sans-serif';
+          ctx.fillText(sync ? 'módulo envia (RabbitMQ)' : 'Sigma consulta (TCP/IP)', 28, 215);
+          ctx.fillText(`${avg(net.history.recv, 5).toFixed(1)} leituras / s`, 28, 255);
 
-          title('Fila', 1, 0);
+          title('Fila RabbitMQ', 1, 0);
           ctx.fillStyle = white;
           ctx.font = 'bold 120px Arial, sans-serif';
           ctx.fillText(String(net.depth), tileW + 28, 70);
@@ -1936,21 +2495,29 @@
           ctx.fillStyle = orange;
           ctx.fillRect(tileW + 28, 255, ((tileW - 56) * Math.min(net.depth, MAX_QUEUE_BOXES)) / MAX_QUEUE_BOXES, 16);
 
-          title('Conexões', 2, 0);
-          netCables.forEach((cable, i) => {
-            const y = 78 + i * 62;
+          title('Módulos', 2, 0);
+          const closed = breakerClosedRef.current;
+          const load = loadLevelRef.current;
+          [
+            ['TM', `óleo ${Math.round(55 + load * 0.25)} °C`],
+            ['BM', 'buchas normais'],
+            ['GMP', `umidade ${Math.round(6 + load / 20)} ppm`],
+            ['DM', closed ? 'contatos fechados' : 'contatos abertos']
+          ].forEach(([name, value], i) => {
+            const y = 74 + i * 54;
             ctx.fillStyle = green;
             ctx.beginPath();
-            ctx.arc(2 * tileW + 44, y + 18, 11, 0, Math.PI * 2);
+            ctx.arc(2 * tileW + 40, y + 16, 10, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = white;
-            ctx.font = '34px Arial, sans-serif';
-            ctx.fillText(`${cable.label}  ${cable.role === 'producer' ? 'produtor' : 'consumidor'}`, 2 * tileW + 72, y);
+            ctx.font = 'bold 30px Arial, sans-serif';
+            ctx.fillText(name, 2 * tileW + 64, y);
+            ctx.fillStyle = grey;
+            ctx.font = '28px Arial, sans-serif';
+            ctx.fillText(value, 2 * tileW + 150, y + 2);
           });
 
           title('Subestação', 3, 0);
-          const closed = breakerClosedRef.current;
-          const load = loadLevelRef.current;
           ctx.fillStyle = closed ? green : '#c26a62';
           ctx.font = 'bold 42px Arial, sans-serif';
           ctx.fillText(closed ? 'Disjuntor fechado' : 'Disjuntor aberto', 3 * tileW + 28, 76);
@@ -1961,12 +2528,12 @@
           ctx.font = '30px Arial, sans-serif';
           ctx.fillText(`carga ${load}%`, 3 * tileW + 28, 245);
 
-          title('Mensagens por segundo (60 s)', 0, 1);
+          title('Leituras por segundo (60 s)', 0, 1);
           const chartLeft = 28;
           const chartRight = 2 * tileW - 28;
           const chartTop = tileH + 80;
           const chartBottom = H - 34;
-          const maxValue = Math.max(3, ...net.history.pub, ...net.history.cons);
+          const maxValue = Math.max(3, ...net.history.recv, ...net.history.saved);
           ctx.strokeStyle = '#26333f';
           ctx.lineWidth = 2;
           for (let g = 0; g <= 3; g++) {
@@ -1989,22 +2556,25 @@
             });
             ctx.stroke();
           };
-          plot(net.history.pub, orange);
-          plot(net.history.cons, green);
+          plot(net.history.recv, sync ? orange : blue);
+          plot(net.history.saved, green);
 
-          title('Totais', 2, 1);
-          [['publicadas', net.published], ['consumidas', net.consumed], ['acks', net.acks]].forEach(([label, value], i) => {
+          title('Banco de dados', 2, 1);
+          ctx.fillStyle = white;
+          ctx.font = 'bold 44px Arial, sans-serif';
+          ctx.fillText(DB_NAMES[net.activeDb], 2 * tileW + 28, tileH + 62);
+          [['recebidas', net.received], ['gravadas', net.saved], ['exibidas', net.shown]].forEach(([label, value], i) => {
             ctx.fillStyle = grey;
-            ctx.font = '30px Arial, sans-serif';
-            ctx.fillText(label, 2 * tileW + 28, tileH + 70 + i * 62);
+            ctx.font = '28px Arial, sans-serif';
+            ctx.fillText(label, 2 * tileW + 28, tileH + 128 + i * 46);
             ctx.fillStyle = white;
-            ctx.font = 'bold 44px Arial, sans-serif';
-            ctx.fillText(String(value), 2 * tileW + 270, tileH + 62 + i * 62);
+            ctx.font = 'bold 34px Arial, sans-serif';
+            ctx.fillText(String(value), 2 * tileW + 230, tileH + 124 + i * 46);
           });
 
           title('Eventos', 3, 1);
           ctx.fillStyle = white;
-          ctx.font = '25px Arial, sans-serif';
+          ctx.font = '23px Arial, sans-serif';
           net.events.forEach((event, i) => ctx.fillText(event, 3 * tileW + 28, tileH + 66 + i * 36));
 
           ctx.strokeStyle = '#05080b';
@@ -2024,6 +2594,7 @@
           texture.needsUpdate = true;
         };
 
+        applyMode();
         drawDashboard();
 
         const updateNetwork = (time) => {
@@ -2032,72 +2603,98 @@
 
           if (time >= net.nextTick) {
             net.nextTick = time + 1;
-            net.history.pub.push(net.pubBucket);
-            net.history.cons.push(net.consBucket);
-            net.pubBucket = 0;
-            net.consBucket = 0;
-            if (net.history.pub.length > 60) net.history.pub.shift();
-            if (net.history.cons.length > 60) net.history.cons.shift();
+            net.history.recv.push(net.recvBucket);
+            net.history.saved.push(net.savedBucket);
+            net.recvBucket = 0;
+            net.savedBucket = 0;
+            if (net.history.recv.length > 60) net.history.recv.shift();
+            if (net.history.saved.length > 60) net.history.saved.shift();
           }
           if (time >= net.nextDraw) {
             net.nextDraw = time + 0.5;
             drawDashboard();
           }
+          if (time >= net.nextDbSwitch) {
+            net.nextDbSwitch = time + 14;
+            net.activeDb = 1 - net.activeDb;
+            applyMode();
+          }
 
-          net.nextPublish.forEach((at, i) => {
-            if (time < at) return;
-            spawnPacket(producerCables[i], 1, 'msg');
-            net.nextPublish[i] = time + 3.5 + Math.random() * 3;
-          });
+          if (net.mode === 'sync') {
+            moduleKeys.forEach((key, i) => {
+              if (time < net.nextSend[i]) return;
+              net.nextSend[i] = time + 3 + Math.random() * 4;
+              sendSync(key);
+            });
+          } else if (time >= net.nextPoll) {
+            net.nextPoll = time + 1.4;
+            pollE3(moduleKeys[net.pollIndex % moduleKeys.length]);
+            net.pollIndex += 1;
+          }
 
           if (time >= net.nextConsume) {
             if (net.depth > 0) {
-              net.depth -= 1;
-              spawnPacket(consumerCable, -1, 'msg');
-              net.nextConsume = time + 2.5;
+              consumeQueue();
+              net.nextConsume = time + 0.9;
             } else {
-              net.nextConsume = time + 0.5;
+              net.nextConsume = time + 0.4;
             }
           }
 
-          for (let i = packets.length - 1; i >= 0; i--) {
-            const p = packets[i];
-            p.dist += p.dir * NET_SPEED * dt;
-            const arrivedAtServer = p.dir > 0 && p.dist >= p.cable.length;
-            const arrivedAtPc = p.dir < 0 && p.dist <= 0;
+          netCables.forEach((cable, i) => {
+            if (time < net.nextUser[i]) return;
+            net.nextUser[i] = time + 6 + Math.random() * 5;
+            userSession(cable);
+          });
 
-            if (arrivedAtServer || arrivedAtPc) {
-              if (arrivedAtServer) {
-                net.flash = 0.25;
-                if (p.kind === 'msg') {
-                  net.depth = Math.min(net.depth + 1, 99);
-                  net.published += 1;
-                  net.pubBucket += 1;
-                  logEvent(time, `${p.cable.label} publicou`);
-                  spawnPacket(p.cable, -1, 'ack');
-                } else {
-                  net.acks += 1;
-                }
-              } else if (p.kind === 'msg') {
-                net.consumed += 1;
-                net.consBucket += 1;
-                logEvent(time, `${p.cable.label} consumiu`);
-                spawnPacket(p.cable, 1, 'ack');
-              } else {
-                net.acks += 1;
+          for (let i = journeys.length - 1; i >= 0; i--) {
+            const journey = journeys[i];
+            const step = journey.steps[journey.index];
+            journey.dist += step.dir * (step.speed || 14) * dt;
+            const finished = step.dir > 0 ? journey.dist >= step.path.length : journey.dist <= 0;
+            if (finished) {
+              if (step.done) step.done(time);
+              journey.index += 1;
+              if (journey.index >= journey.steps.length) {
+                scene.remove(journey.mesh);
+                journeys.splice(i, 1);
+                continue;
               }
-              scene.remove(p.mesh);
-              packets.splice(i, 1);
-              continue;
+              enterStep(journey);
             }
-
-            p.mesh.position.copy(cablePoint(p.cable, p.dist));
-            p.mesh.position.y += 0.12;
+            const active = journey.steps[journey.index];
+            journey.mesh.position.copy(cablePoint(active.path, journey.dist));
+            journey.mesh.position.y += active.path.line ? 0 : 0.12;
           }
 
           queueBoxes.forEach((box, i) => { box.visible = i < net.depth; });
           net.flash = Math.max(0, net.flash - dt);
           if (treetechLed.mesh) treetechLed.mesh.material.color.set(net.flash > 0 ? '#ffffff' : '#6fbf8a');
+          moduleKeys.forEach(key => {
+            const node = moduleNodes[key];
+            node.flash = Math.max(0, node.flash - dt);
+            node.led.material.color.set(node.flash > 0 ? '#ffffff' : '#6fbf8a');
+          });
+        };
+
+        // Interface com o React: o tour liga o modo, abre os telhados e escolhe os rótulos
+        const roofByName = { plant: plantRoof, treetech: treetechRoof, factory: factoryRoof };
+        sceneApiRef.current = {
+          setMode: (mode) => {
+            if (net.mode !== mode) {
+              journeys.forEach(journey => scene.remove(journey.mesh));
+              journeys.length = 0;
+              net.depth = 0;
+            }
+            net.mode = mode;
+            applyMode();
+          },
+          setRoofs: (state) => {
+            Object.keys(state).forEach(name => {
+              if (roofByName[name]) roofByName[name].open = state[name];
+            });
+          },
+          setLabels
         };
 
         // --- SISTEMA DE SELEÇÃO E RAYCASTING (CLIQUE NOS COMPONENTES) ---
@@ -2105,6 +2702,7 @@
         const mouse = new THREE.Vector2();
 
         const handleClick = (event) => {
+          if (event.target !== renderer.domElement) return;
           mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
           mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -2211,6 +2809,7 @@
             if (toggle.roof) toggle.roof.visible = !toggle.open;
           });
 
+          updateWorld(time);
           updateNetwork(time);
 
           // Usina: ventoinhas girando e fumaça nas chaminés
@@ -2333,8 +2932,8 @@
 
         switch (preset) {
           case 'overview':
-            controls.object.position.set(105, 72, 70);
-            controls.target.set(29, 0, -7);
+            controls.object.position.set(109, 75, 84);
+            controls.target.set(29, 0, 4);
             break;
           case 'plant':
             controls.object.position.set(40, 22, 28);
@@ -2348,6 +2947,11 @@
           case 'network':
             controls.object.position.set(60, 24, 26);
             controls.target.set(38, 0.5, 3);
+            break;
+          case 'factory':
+            sceneApiRef.current.setRoofs({ factory: true });
+            controls.object.position.set(68, 16, 47);
+            controls.target.set(54, 1, 33);
             break;
           case 'dashboard':
             treetechRoofApiRef.current.setOpen(true);
@@ -2384,6 +2988,25 @@
           default:
             break;
         }
+      };
+
+      // Tour guiado: move a câmera, escolhe o modo de comunicação, abre os telhados e mostra os rótulos do passo
+      const goToTourStep = (index) => {
+        const step = TOUR_STEPS[index];
+        if (!step || !controlsRef.current) return;
+        const controls = controlsRef.current;
+        controls.object.position.set(...step.camera.position);
+        controls.target.set(...step.camera.target);
+        sceneApiRef.current.setMode(step.mode);
+        sceneApiRef.current.setRoofs(step.roofs);
+        sceneApiRef.current.setLabels(step.labels);
+        setTourStep(index);
+      };
+
+      const endTour = () => {
+        setTourStep(null);
+        sceneApiRef.current.setMode('sync');
+        sceneApiRef.current.setLabels(null);
       };
 
       // Alternar Estado do Disjuntor Principal
@@ -2456,6 +3079,9 @@
 
             {/* PAINEL ESQUERDO: SELEÇÃO DE VISTAS E MODOS */}
             <div className="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 flex flex-col gap-3 w-48 shadow-xl">
+              <button onClick={() => goToTourStep(0)} className="px-2 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-bold text-white">
+                Tour: como funciona
+              </button>
               <div className="text-xs font-bold text-slate-400 tracking-wider uppercase border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
                 <Icons.Camera /> Câmera Presets
               </div>
@@ -2467,6 +3093,7 @@
                 <button onClick={() => setCameraPreset('treetech')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Treetech</button>
                 <button onClick={() => setCameraPreset('network')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Rede</button>
                 <button onClick={() => setCameraPreset('dashboard')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Painel</button>
+                <button onClick={() => setCameraPreset('factory')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Fábrica</button>
                 <button onClick={() => setCameraPreset('iso')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Isométrica</button>
                 <button onClick={() => setCameraPreset('top')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Planta Baixa</button>
                 <button onClick={() => setCameraPreset('trafo')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Trafo 01</button>
@@ -2549,6 +3176,48 @@
               )}
             </div>
           </footer>
+
+          {/* PAINEL DO TOUR GUIADO */}
+          {tourStep !== null && (
+            <div className="pointer-events-auto fixed left-1/2 -translate-x-1/2 bottom-24 w-[34rem] max-w-[92vw] bg-slate-900/95 backdrop-blur-md border border-emerald-500/50 rounded-xl p-4 shadow-2xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
+                  Tour: como funciona · passo {tourStep + 1} de {TOUR_STEPS.length}
+                </span>
+                <button onClick={endTour} className="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+              </div>
+              <h3 className="font-bold text-base text-white mb-1">{TOUR_STEPS[tourStep].title}</h3>
+              <p className="text-xs text-slate-300 leading-relaxed mb-3">{TOUR_STEPS[tourStep].text}</p>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-1.5">
+                  {TOUR_STEPS.map((_, i) => (
+                    <span key={i} className={`w-2 h-2 rounded-full ${i === tourStep ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    disabled={tourStep === 0}
+                    onClick={() => goToTourStep(tourStep - 1)}
+                    className="px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-xs text-slate-200 disabled:opacity-40"
+                  >
+                    Anterior
+                  </button>
+                  {tourStep < TOUR_STEPS.length - 1 ? (
+                    <button
+                      onClick={() => goToTourStep(tourStep + 1)}
+                      className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white"
+                    >
+                      Próximo
+                    </button>
+                  ) : (
+                    <button onClick={endTour} className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white">
+                      Concluir
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       );

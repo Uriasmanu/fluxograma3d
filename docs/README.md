@@ -13,6 +13,10 @@ docs/
     plans/                      # um plano de implementação por parte
 ```
 
+## O que a cena representa
+
+A explicação do domínio (Treetech, módulos, E3, Sync/RabbitMQ, banco de dados e Sigma ECM) está em [dominio-treetech.md](dominio-treetech.md). Leia esse documento antes de mudar a cena 3D.
+
 ## Convenções
 
 - **Nome dos arquivos:** `YYYY-MM-DD-parte-N-<tema>-design.md` para specs e `YYYY-MM-DD-parte-N-<tema>.md` para planos. O `N` é o número da parte no roadmap.
