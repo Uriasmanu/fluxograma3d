@@ -800,16 +800,16 @@
 
         const matLatticeSteel = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.15 });
         const matSteelJoint = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.3 });
-        const matInsulator = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.2, metalness: 0.1 });
+        const matInsulator = new THREE.MeshStandardMaterial({ color: 0x9a6b52, roughness: 0.2, metalness: 0.1 });
         const matSubstationBase = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 });
-        const matYellowStripe = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3 });
+        const matYellowStripe = new THREE.MeshStandardMaterial({ color: 0xcbb877, roughness: 0.3 });
         const matRoad = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
-        const matRoadLine = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3 });
-        const matGrassPlot = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.7 });
+        const matRoadLine = new THREE.MeshStandardMaterial({ color: 0xcdbf8a, roughness: 0.3 });
+        const matGrassPlot = new THREE.MeshStandardMaterial({ color: 0xa8bd98, roughness: 0.7 });
         const matConcreteCurb = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
         const matWhiteWall = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-        const matTrunkWood = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.8 });
-        const matTreeFoliage = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.6 });
+        const matTrunkWood = new THREE.MeshStandardMaterial({ color: 0x7a6048, roughness: 0.8 });
+        const matTreeFoliage = new THREE.MeshStandardMaterial({ color: 0x6f9a6a, roughness: 0.6 });
 
         const cityPulses = [];
         const cityWires = [];
@@ -900,7 +900,7 @@
         const pylon2 = createTransmissionPylon(-2, 12);
 
         // Cabo em catenária (verde-menta) entre dois pontos
-        const createCatenaryWire = (p1, p2, sag = 1.4, colorHex = 0x10b981) => {
+        const createCatenaryWire = (p1, p2, sag = 1.4, colorHex = 0x6fa08f) => {
           const points = [];
           const steps = 24;
           for (let i = 0; i <= steps; i++) {
@@ -962,14 +962,14 @@
 
         // Casas e sobrados
         const housePlots = [
-          { x: -3, z: -8, color: 0xdc2626, stories: 1 },
-          { x: 5, z: -8, color: 0x1e3a8a, stories: 2 },
-          { x: 13, z: -8, color: 0xd97706, stories: 1 },
-          { x: 20, z: -8, color: 0x059669, stories: 2 },
-          { x: -3, z: 8, color: 0x7c3aed, stories: 2 },
-          { x: 5, z: 8, color: 0xe11d48, stories: 1 },
-          { x: 13, z: 8, color: 0x0284c7, stories: 2 },
-          { x: 20, z: 8, color: 0x334155, stories: 1 }
+          { x: -3, z: -8, color: 0xa35a52, stories: 1 },
+          { x: 5, z: -8, color: 0x4a5a7a, stories: 2 },
+          { x: 13, z: -8, color: 0xb08a5a, stories: 1 },
+          { x: 20, z: -8, color: 0x5f8a7c, stories: 2 },
+          { x: -3, z: 8, color: 0x7d6d9a, stories: 2 },
+          { x: 5, z: 8, color: 0xa8606c, stories: 1 },
+          { x: 13, z: 8, color: 0x5f8aa5, stories: 2 },
+          { x: 20, z: 8, color: 0x46515f, stories: 1 }
         ];
 
         housePlots.forEach(plot => {
@@ -1006,7 +1006,7 @@
             plotGroup.add(roof);
           }
 
-          const winMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+          const winMat = new THREE.MeshBasicMaterial({ color: 0xf3e6a8 });
           const winGeo = new THREE.PlaneGeometry(0.7, 0.7);
           [-1.0, 1.0].forEach(wx => {
             const win = new THREE.Mesh(winGeo, winMat);
@@ -1066,10 +1066,10 @@
         });
 
         mainWireCurves.push(
-          createCatenaryWire(pylon2.hooks[1], poleHooks[0], 1.2, 0x06b6d4),
-          createCatenaryWire(poleHooks[0], poleHooks[1], 0.8, 0x06b6d4),
-          createCatenaryWire(poleHooks[1], poleHooks[2], 0.8, 0x06b6d4),
-          createCatenaryWire(poleHooks[2], poleHooks[3], 0.8, 0x06b6d4)
+          createCatenaryWire(pylon2.hooks[1], poleHooks[0], 1.2, 0x6f9aa8),
+          createCatenaryWire(poleHooks[0], poleHooks[1], 0.8, 0x6f9aa8),
+          createCatenaryWire(poleHooks[1], poleHooks[2], 0.8, 0x6f9aa8),
+          createCatenaryWire(poleHooks[2], poleHooks[3], 0.8, 0x6f9aa8)
         );
 
         housePlots.forEach((hp, idx) => {
@@ -1080,7 +1080,7 @@
         // Pulsos de energia correndo pelos cabos principais
         mainWireCurves.forEach(curve => {
           for (let p = 0; p < 2; p++) {
-            const particle = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+            const particle = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshBasicMaterial({ color: 0xd8c98a }));
             particle.userData = { curve, progress: Math.random(), speed: 0.009 };
             cityWorld.add(particle);
             cityPulses.push(particle);
@@ -1102,9 +1102,9 @@
           hazardCanvas.width = 512;
           hazardCanvas.height = 64;
           const hCtx = hazardCanvas.getContext('2d');
-          hCtx.fillStyle = '#ffb703';
+          hCtx.fillStyle = '#cdb97a';
           hCtx.fillRect(0, 0, 512, 64);
-          hCtx.fillStyle = '#d90429';
+          hCtx.fillStyle = '#a8625c';
           for (let i = -64; i < 512 + 64; i += 32) {
             hCtx.beginPath();
             hCtx.moveTo(i, 0);
@@ -1147,12 +1147,12 @@
 
           // Materiais
           const concreteMat = new THREE.MeshStandardMaterial({ color: '#a0aab3', roughness: 0.65, metalness: 0.1 });
-          const orangeMat = new THREE.MeshStandardMaterial({ color: '#e05328', roughness: 0.5 });
-          const roofRedMat = new THREE.MeshStandardMaterial({ color: '#bd3324', roughness: 0.5 });
+          const orangeMat = new THREE.MeshStandardMaterial({ color: '#b8896c', roughness: 0.5 });
+          const roofRedMat = new THREE.MeshStandardMaterial({ color: '#8f5a52', roughness: 0.5 });
           const darkMetalMat = new THREE.MeshStandardMaterial({ color: '#33383f', roughness: 0.4, metalness: 0.7 });
           const silverPipeMat = new THREE.MeshStandardMaterial({ color: '#c5cbcf', roughness: 0.25, metalness: 0.85 });
-          const redChamberMat = new THREE.MeshStandardMaterial({ color: '#d90429', roughness: 0.4 });
-          const yellowStripMat = new THREE.MeshStandardMaterial({ color: '#ffb703', roughness: 0.4 });
+          const redChamberMat = new THREE.MeshStandardMaterial({ color: '#a8625c', roughness: 0.4 });
+          const yellowStripMat = new THREE.MeshStandardMaterial({ color: '#c9b273', roughness: 0.4 });
           const insulatorMat = new THREE.MeshStandardMaterial({ color: '#903323', roughness: 0.3 });
           const transformerMat = new THREE.MeshStandardMaterial({ color: '#566068', roughness: 0.5, metalness: 0.5 });
 
@@ -1321,9 +1321,9 @@
             return drum;
           };
 
-          plantWorld.add(createDrum(0.8, 3.6, '#ffb703'));
-          plantWorld.add(createDrum(1.3, 3.8, '#d90429'));
-          plantWorld.add(createDrum(0.9, 4.2, '#ffb703'));
+          plantWorld.add(createDrum(0.8, 3.6, '#c9b273'));
+          plantWorld.add(createDrum(1.3, 3.8, '#a8625c'));
+          plantWorld.add(createDrum(0.9, 4.2, '#c9b273'));
           plantWorld.add(createDrum(1.4, 4.4, '#33383f'));
 
           // 7. Fumaça das chaminés
@@ -1449,7 +1449,7 @@
             w.mesh.material.color.setHex(cityOn ? w.baseColor : 0x64748b);
             w.mesh.material.emissive.setHex(cityOn ? w.baseColor : 0x000000);
           });
-          cityWindows.forEach(win => win.material.color.setHex(cityOn ? 0xfef08a : 0x334155));
+          cityWindows.forEach(win => win.material.color.setHex(cityOn ? 0xf3e6a8 : 0x334155));
 
           // Pessoas caminhando: posição pela distância percorrida, passos sincronizados com ela
           walkers.forEach(w => {
