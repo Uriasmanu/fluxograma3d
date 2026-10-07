@@ -1249,9 +1249,9 @@
           ventMesh2.position.set(1.5, 1.6, -0.99);
           midBuildingGroup.add(ventMesh2);
 
-          const createRoofFan = (x, z, scale = 1) => {
+          const createRoofFan = (x, z, scale = 1, roofY = 4.85) => {
             const fanGroup = new THREE.Group();
-            fanGroup.position.set(x, 4.85, z);
+            fanGroup.position.set(x, roofY, z);
 
             const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.75 * scale, 0.8 * scale, 0.3 * scale, 24), darkMetalMat);
             housing.position.y = 0.15 * scale;
@@ -1316,7 +1316,7 @@
           frontBuildingGroup.add(createFrontChimney(-3.6, 0.2));
 
           [[-1.8, 1.0], [-1.8, 2.4], [-0.4, 1.8]].forEach(([fx, fz]) => {
-            frontBuildingGroup.add(createRoofFan(fx, fz, 0.8));
+            frontBuildingGroup.add(createRoofFan(fx, fz, 0.8, 2.8));
           });
 
           const pipeCurve = new THREE.CatmullRomCurve3([
