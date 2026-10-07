@@ -112,6 +112,8 @@
       const controlsRef = useRef(null);
       const componentMeshesRef = useRef({});
       const particleSystemsRef = useRef([]);
+      const breakerClosedRef = useRef(true);
+      breakerClosedRef.current = breakerClosed;
 
       // Dados dos Componentes para inspeção técnica
       const componentData = {
@@ -240,7 +242,7 @@
         const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 1000);
 
         // Vista Isométrica inicial idêntica à foto
-        camera.position.set(22, 18, 22);
+        camera.position.set(84, 58, 56);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -258,8 +260,8 @@
         controls.dampingFactor = 0.05;
         controls.maxPolarAngle = Math.PI / 2 - 0.02; // Não atravessar o chão
         controls.minDistance = 5;
-        controls.maxDistance = 60;
-        controls.target.set(0, 2.5, 0);
+        controls.maxDistance = 220;
+        controls.target.set(22, 0, -8);
         controlsRef.current = controls;
 
         // Iluminação Ambientes e Sol
@@ -269,11 +271,11 @@
         const sunLight = new THREE.DirectionalLight(0xffffff, viewMode === 'night' ? 0.1 : 1.2);
         sunLight.position.set(25, 35, 15);
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048;
-        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
         sunLight.shadow.camera.near = 0.5;
-        sunLight.shadow.camera.far = 80;
-        const d = 16;
+        sunLight.shadow.camera.far = 220;
+        const d = 80;
         sunLight.shadow.camera.left = -d;
         sunLight.shadow.camera.right = d;
         sunLight.shadow.camera.top = d;
@@ -704,6 +706,740 @@
         const cablesMesh = createPowerCables();
         substationGroup.add(cablesMesh);
 
+        // 9. PESSOAS ANDANDO PELOS CORREDORES DA SUBESTAÇÃO
+        const createWorker = (vestColor) => {
+          const worker = new THREE.Group();
+          const matVest = new THREE.MeshStandardMaterial({ color: vestColor, roughness: 0.6 });
+          const matSkin = new THREE.MeshStandardMaterial({ color: '#f1c7a1', roughness: 0.8 });
+          const matPants = new THREE.MeshStandardMaterial({ color: '#2f3b52', roughness: 0.8 });
+          const matHelmet = new THREE.MeshStandardMaterial({ color: '#ffd23f', roughness: 0.4 });
+
+          // Cada membro gira em torno de um pivô (quadril ou ombro)
+          const makeLimb = (geo, mat, x, y, drop) => {
+            const pivot = new THREE.Group();
+            pivot.position.set(x, y, 0);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.y = drop;
+            mesh.castShadow = true;
+            pivot.add(mesh);
+            return pivot;
+          };
+
+          const legGeo = new THREE.BoxGeometry(0.16, 0.8, 0.16);
+          const armGeo = new THREE.BoxGeometry(0.12, 0.6, 0.12);
+          const leftLeg = makeLimb(legGeo, matPants, -0.11, 0.85, -0.4);
+          const rightLeg = makeLimb(legGeo, matPants, 0.11, 0.85, -0.4);
+          const leftArm = makeLimb(armGeo, matVest, -0.28, 1.4, -0.28);
+          const rightArm = makeLimb(armGeo, matVest, 0.28, 1.4, -0.28);
+          worker.add(leftLeg, rightLeg, leftArm, rightArm);
+
+          const torso = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.6, 0.26), matVest);
+          torso.position.y = 1.15;
+          torso.castShadow = true;
+          worker.add(torso);
+
+          const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), matSkin);
+          head.position.y = 1.62;
+          head.castShadow = true;
+          worker.add(head);
+
+          const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), matHelmet);
+          helmet.position.y = 1.66;
+          helmet.castShadow = true;
+          worker.add(helmet);
+
+          worker.userData = { leftLeg, rightLeg, leftArm, rightArm };
+          return worker;
+        };
+
+        // Trajetos em [x, z]: 'loop' fecha o circuito, 'pingpong' vai e volta
+        const makePath = (points, mode) => {
+          const pts = mode === 'loop' ? [...points, points[0]] : points;
+          const segs = [];
+          let total = 0;
+          for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i];
+            const b = pts[i + 1];
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            segs.push({ a, b, len, start: total });
+            total += len;
+          }
+          return { segs, total, mode };
+        };
+
+        const samplePath = (path, distance) => {
+          const span = path.mode === 'loop' ? path.total : path.total * 2;
+          let d = ((distance % span) + span) % span;
+          let dir = 1;
+          if (path.mode === 'pingpong' && d > path.total) {
+            d = span - d;
+            dir = -1;
+          }
+          const seg = path.segs.find(s => d <= s.start + s.len) || path.segs[path.segs.length - 1];
+          const t = seg.len === 0 ? 0 : (d - seg.start) / seg.len;
+          const dx = seg.b[0] - seg.a[0];
+          const dz = seg.b[1] - seg.a[1];
+          return { x: seg.a[0] + dx * t, z: seg.a[1] + dz * t, heading: Math.atan2(dx * dir, dz * dir) };
+        };
+
+        const walkerDefs = [
+          { color: '#ff7a1a', mode: 'loop', speed: 1.3, offset: 0, points: [[-6.3, 6.3], [6.3, 6.3], [6.3, -6.3], [-6.3, -6.3]] },
+          { color: '#ffd23f', mode: 'loop', speed: 1.1, offset: 25, points: [[-6.3, -6.3], [6.3, -6.3], [6.3, 6.3], [-6.3, 6.3]] }
+        ];
+
+        const walkers = walkerDefs.map(def => {
+          const group = createWorker(def.color);
+          substationGroup.add(group);
+          return { group, path: makePath(def.points, def.mode), speed: def.speed, offset: def.offset };
+        });
+
+        // 10. CIDADE E TORRES DE TRANSMISSÃO AO LADO DA SUBESTAÇÃO
+        const cityWorld = new THREE.Group();
+        cityWorld.position.set(32, 0, -16.5);
+        scene.add(cityWorld);
+
+        const matLatticeSteel = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.85, roughness: 0.15 });
+        const matSteelJoint = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.7, roughness: 0.3 });
+        const matInsulator = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.2, metalness: 0.1 });
+        const matSubstationBase = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 });
+        const matYellowStripe = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.3 });
+        const matRoad = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.7 });
+        const matRoadLine = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.3 });
+        const matGrassPlot = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.7 });
+        const matConcreteCurb = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+        const matWhiteWall = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+        const matTrunkWood = new THREE.MeshStandardMaterial({ color: 0x854d0e, roughness: 0.8 });
+        const matTreeFoliage = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.6 });
+
+        const cityPulses = [];
+        const cityWires = [];
+        const cityWindows = [];
+
+        // Grama de ligação entre a placa da subestação e a cidade
+        const bridgeGround = new THREE.Mesh(new THREE.BoxGeometry(45.5, 0.4, 50), matGrass);
+        bridgeGround.position.set(3.25, -0.22, 4.5);
+        bridgeGround.receiveShadow = true;
+        cityWorld.add(bridgeGround);
+
+        // Torre de transmissão em treliça com isoladores cerâmicos
+        const createTransmissionPylon = (x, z) => {
+          const pylon = new THREE.Group();
+          pylon.position.set(x, 0, z);
+
+          const padBase = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, 0.2, 32), matYellowStripe);
+          padBase.position.y = 0.1;
+          padBase.receiveShadow = true;
+          pylon.add(padBase);
+
+          const pad = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.25, 32), matSubstationBase);
+          pad.position.y = 0.25;
+          pad.receiveShadow = true;
+          pylon.add(pad);
+
+          const towerHeight = 12.5;
+
+          for (let i = 0; i < 4; i++) {
+            const angle = (i * Math.PI) / 2 + Math.PI / 4;
+            const botR = 1.45;
+            const topR = 0.42;
+
+            const x1 = Math.cos(angle) * botR;
+            const z1 = Math.sin(angle) * botR;
+            const x2 = Math.cos(angle) * topR;
+            const z2 = Math.sin(angle) * topR;
+
+            const legGeo = new THREE.CylinderGeometry(0.1, 0.13, towerHeight, 8);
+            const leg = new THREE.Mesh(legGeo, matLatticeSteel);
+            leg.position.set((x1 + x2) / 2, towerHeight / 2 + 0.35, (z1 + z2) / 2);
+            leg.rotation.z = Math.atan2(x1 - x2, towerHeight);
+            leg.rotation.x = Math.atan2(z2 - z1, towerHeight);
+            leg.castShadow = true;
+            pylon.add(leg);
+          }
+
+          const levels = 6;
+          for (let l = 1; l <= levels; l++) {
+            const h = (towerHeight / levels) * l + 0.35;
+            const ringR = 1.45 - (l / levels) * 1.03;
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, 0.05, 4, 4), matSteelJoint);
+            ring.position.y = h;
+            ring.rotation.x = Math.PI / 2;
+            pylon.add(ring);
+          }
+
+          const armHeights = [towerHeight - 1.2, towerHeight + 0.4];
+          const armWidths = [5.2, 3.6];
+          const attachmentHooks = [];
+
+          armHeights.forEach((ah, idx) => {
+            const w = armWidths[idx];
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(w, 0.16, 0.35), matLatticeSteel);
+            arm.position.y = ah;
+            arm.castShadow = true;
+            pylon.add(arm);
+
+            [-w / 2 + 0.3, 0, w / 2 - 0.3].forEach(xOffset => {
+              const insGroup = new THREE.Group();
+              insGroup.position.set(xOffset, ah - 0.1, 0);
+
+              for (let k = 0; k < 4; k++) {
+                const insDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.14, 0.15, 12), matInsulator);
+                insDisc.position.y = -(k * 0.18);
+                insGroup.add(insDisc);
+              }
+              pylon.add(insGroup);
+              attachmentHooks.push(new THREE.Vector3(x + xOffset, ah - 0.9, z));
+            });
+          });
+
+          cityWorld.add(pylon);
+          return { hooks: attachmentHooks };
+        };
+
+        const pylon1 = createTransmissionPylon(-12, 12);
+        const pylon2 = createTransmissionPylon(-2, 12);
+
+        // Cabo em catenária (verde-menta) entre dois pontos
+        const createCatenaryWire = (p1, p2, sag = 1.4, colorHex = 0x10b981) => {
+          const points = [];
+          const steps = 24;
+          for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            points.push(new THREE.Vector3(
+              p1.x + (p2.x - p1.x) * t,
+              p1.y + (p2.y - p1.y) * t - Math.sin(t * Math.PI) * sag,
+              p1.z + (p2.z - p1.z) * t
+            ));
+          }
+          const curve = new THREE.CatmullRomCurve3(points);
+          const cableMat = new THREE.MeshStandardMaterial({
+            color: colorHex,
+            roughness: 0.2,
+            metalness: 0.3,
+            emissive: colorHex,
+            emissiveIntensity: 0.2
+          });
+          const wireMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.08, 8, false), cableMat);
+          cityWorld.add(wireMesh);
+          cityWires.push({ mesh: wireMesh, baseColor: colorHex });
+          return curve;
+        };
+
+        const mainWireCurves = [];
+
+        // Pórtico da subestação -> Torre 1 (coordenadas locais da cidade: mundo - deslocamento)
+        [-2, 0, 2].forEach((gx, i) => {
+          const gantryHook = new THREE.Vector3(gx - 32, 6.25, 12);
+          mainWireCurves.push(createCatenaryWire(gantryHook, pylon1.hooks[i], 1.2));
+        });
+
+        // Torre 1 -> Torre 2
+        for (let i = 0; i < 3; i++) {
+          mainWireCurves.push(createCatenaryWire(pylon1.hooks[i], pylon2.hooks[i], 1.6));
+        }
+
+        // Chão e ruas da cidade
+        const cityGround = new THREE.Mesh(new THREE.BoxGeometry(34, 0.2, 34), new THREE.MeshStandardMaterial({ color: 0xe2e8f0 }));
+        cityGround.position.set(8, -0.1, -2);
+        cityGround.receiveShadow = true;
+        cityWorld.add(cityGround);
+
+        const roadH = new THREE.Mesh(new THREE.BoxGeometry(34, 0.22, 5), matRoad);
+        roadH.position.set(8, -0.08, 0);
+        roadH.receiveShadow = true;
+        cityWorld.add(roadH);
+
+        const roadV = new THREE.Mesh(new THREE.BoxGeometry(5, 0.22, 34), matRoad);
+        roadV.position.set(8, -0.08, -2);
+        roadV.receiveShadow = true;
+        cityWorld.add(roadV);
+
+        for (let r = -8; r <= 24; r += 3.5) {
+          const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.24, 0.22), matRoadLine);
+          stripe.position.set(r, -0.06, 0);
+          cityWorld.add(stripe);
+        }
+
+        // Casas e sobrados
+        const housePlots = [
+          { x: -3, z: -8, color: 0xdc2626, stories: 1 },
+          { x: 5, z: -8, color: 0x1e3a8a, stories: 2 },
+          { x: 13, z: -8, color: 0xd97706, stories: 1 },
+          { x: 20, z: -8, color: 0x059669, stories: 2 },
+          { x: -3, z: 8, color: 0x7c3aed, stories: 2 },
+          { x: 5, z: 8, color: 0xe11d48, stories: 1 },
+          { x: 13, z: 8, color: 0x0284c7, stories: 2 },
+          { x: 20, z: 8, color: 0x334155, stories: 1 }
+        ];
+
+        housePlots.forEach(plot => {
+          const plotGroup = new THREE.Group();
+          plotGroup.position.set(plot.x, 0, plot.z);
+
+          const plotBase = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.35, 6.4), matGrassPlot);
+          plotBase.position.y = 0.17;
+          plotBase.receiveShadow = true;
+          plotGroup.add(plotBase);
+
+          const border = new THREE.Mesh(new THREE.BoxGeometry(6.7, 0.18, 6.7), matConcreteCurb);
+          border.position.y = 0.08;
+          plotGroup.add(border);
+
+          const height = plot.stories === 2 ? 3.8 : 2.2;
+          const bldgBody = new THREE.Mesh(new THREE.BoxGeometry(3.6, height, 3.2), matWhiteWall);
+          bldgBody.position.y = 0.35 + height / 2;
+          bldgBody.castShadow = true;
+          bldgBody.receiveShadow = true;
+          plotGroup.add(bldgBody);
+
+          const roofMat = new THREE.MeshStandardMaterial({ color: plot.color, roughness: 0.3 });
+          if (plot.stories === 1) {
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(3.1, 1.9, 4), roofMat);
+            roof.position.y = 0.35 + height + 0.95;
+            roof.rotation.y = Math.PI / 4;
+            roof.castShadow = true;
+            plotGroup.add(roof);
+          } else {
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.45, 3.4), roofMat);
+            roof.position.y = 0.35 + height + 0.22;
+            roof.castShadow = true;
+            plotGroup.add(roof);
+          }
+
+          const winMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+          const winGeo = new THREE.PlaneGeometry(0.7, 0.7);
+          [-1.0, 1.0].forEach(wx => {
+            const win = new THREE.Mesh(winGeo, winMat);
+            win.position.set(wx, 0.35 + height / 2, 1.61);
+            plotGroup.add(win);
+            cityWindows.push(win);
+          });
+
+          const createTree = (tx, tz) => {
+            const tree = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 8), matTrunkWood);
+            trunk.position.set(tx, 0.6, tz);
+            tree.add(trunk);
+
+            const foliage = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.9, 8), matTreeFoliage);
+            foliage.position.set(tx, 1.85, tz);
+            foliage.castShadow = true;
+            tree.add(foliage);
+            return tree;
+          };
+
+          plotGroup.add(createTree(-2.3, -2.2));
+          plotGroup.add(createTree(2.3, -2.2));
+
+          cityWorld.add(plotGroup);
+        });
+
+        // Postes de distribuição e ligação com as casas
+        const utilityPolePositions = [
+          { x: -3, z: -3 }, { x: 5, z: -3 }, { x: 13, z: -3 }, { x: 20, z: -3 },
+          { x: -3, z: 3 }, { x: 5, z: 3 }, { x: 13, z: 3 }, { x: 20, z: 3 }
+        ];
+
+        const poleHooks = [];
+
+        utilityPolePositions.forEach((pos, idx) => {
+          const poleGroup = new THREE.Group();
+          poleGroup.position.set(pos.x, 0, pos.z);
+
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 5.5, 8), matSubstationBase);
+          pole.position.y = 2.75;
+          pole.castShadow = true;
+          poleGroup.add(pole);
+
+          const poleArm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.15), matRoad);
+          poleArm.position.y = 5.0;
+          poleGroup.add(poleArm);
+
+          if (idx % 2 === 0) {
+            const poleTrans = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.8, 10), matSteelJoint);
+            poleTrans.position.set(0.35, 4.2, 0);
+            poleGroup.add(poleTrans);
+          }
+
+          poleHooks.push(new THREE.Vector3(pos.x, 4.9, pos.z));
+          cityWorld.add(poleGroup);
+        });
+
+        mainWireCurves.push(
+          createCatenaryWire(pylon2.hooks[1], poleHooks[0], 1.2, 0x06b6d4),
+          createCatenaryWire(poleHooks[0], poleHooks[1], 0.8, 0x06b6d4),
+          createCatenaryWire(poleHooks[1], poleHooks[2], 0.8, 0x06b6d4),
+          createCatenaryWire(poleHooks[2], poleHooks[3], 0.8, 0x06b6d4)
+        );
+
+        housePlots.forEach((hp, idx) => {
+          const houseHook = new THREE.Vector3(hp.x, hp.stories === 2 ? 4.2 : 2.8, hp.z);
+          createCatenaryWire(poleHooks[idx], houseHook, 0.4, 0x475569);
+        });
+
+        // Pulsos de energia correndo pelos cabos principais
+        mainWireCurves.forEach(curve => {
+          for (let p = 0; p < 2; p++) {
+            const particle = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+            particle.userData = { curve, progress: Math.random(), speed: 0.009 };
+            cityWorld.add(particle);
+            cityPulses.push(particle);
+          }
+        });
+
+        // 11. USINA ELÉTRICA AO LADO DA SUBESTAÇÃO (modelo enviado pelo usuário)
+        const plantWorld = new THREE.Group();
+        plantWorld.position.set(24, 0, 14);
+        scene.add(plantWorld);
+
+        const plantFans = [];
+        const plantSteam = [];
+        let plantSparkLight = null;
+
+        const buildPowerPlant = () => {
+          // Texturas procedurais: faixa de perigo, persiana e janelas em grade
+          const hazardCanvas = document.createElement('canvas');
+          hazardCanvas.width = 512;
+          hazardCanvas.height = 64;
+          const hCtx = hazardCanvas.getContext('2d');
+          hCtx.fillStyle = '#ffb703';
+          hCtx.fillRect(0, 0, 512, 64);
+          hCtx.fillStyle = '#d90429';
+          for (let i = -64; i < 512 + 64; i += 32) {
+            hCtx.beginPath();
+            hCtx.moveTo(i, 0);
+            hCtx.lineTo(i + 16, 0);
+            hCtx.lineTo(i - 16, 64);
+            hCtx.lineTo(i - 32, 64);
+            hCtx.closePath();
+            hCtx.fill();
+          }
+          const hazardTex = new THREE.CanvasTexture(hazardCanvas);
+          hazardTex.wrapS = THREE.RepeatWrapping;
+          hazardTex.wrapT = THREE.RepeatWrapping;
+          hazardTex.repeat.set(8, 1);
+
+          const ventCanvas = document.createElement('canvas');
+          ventCanvas.width = 128;
+          ventCanvas.height = 128;
+          const vCtx = ventCanvas.getContext('2d');
+          vCtx.fillStyle = '#3a4149';
+          vCtx.fillRect(0, 0, 128, 128);
+          vCtx.fillStyle = '#1e2227';
+          for (let y = 8; y < 128; y += 12) {
+            vCtx.fillRect(8, y, 112, 6);
+          }
+          const ventTex = new THREE.CanvasTexture(ventCanvas);
+
+          const winCanvas = document.createElement('canvas');
+          winCanvas.width = 256;
+          winCanvas.height = 256;
+          const wCtx = winCanvas.getContext('2d');
+          wCtx.fillStyle = '#8f9ba6';
+          wCtx.fillRect(0, 0, 256, 256);
+          wCtx.fillStyle = '#2b323a';
+          for (let x = 16; x < 256; x += 40) {
+            for (let y = 16; y < 256; y += 40) {
+              wCtx.fillRect(x, y, 28, 28);
+            }
+          }
+          const winTex = new THREE.CanvasTexture(winCanvas);
+
+          // Materiais
+          const concreteMat = new THREE.MeshStandardMaterial({ color: '#a0aab3', roughness: 0.65, metalness: 0.1 });
+          const orangeMat = new THREE.MeshStandardMaterial({ color: '#e05328', roughness: 0.5 });
+          const roofRedMat = new THREE.MeshStandardMaterial({ color: '#bd3324', roughness: 0.5 });
+          const darkMetalMat = new THREE.MeshStandardMaterial({ color: '#33383f', roughness: 0.4, metalness: 0.7 });
+          const silverPipeMat = new THREE.MeshStandardMaterial({ color: '#c5cbcf', roughness: 0.25, metalness: 0.85 });
+          const redChamberMat = new THREE.MeshStandardMaterial({ color: '#d90429', roughness: 0.4 });
+          const yellowStripMat = new THREE.MeshStandardMaterial({ color: '#ffb703', roughness: 0.4 });
+          const insulatorMat = new THREE.MeshStandardMaterial({ color: '#903323', roughness: 0.3 });
+          const transformerMat = new THREE.MeshStandardMaterial({ color: '#566068', roughness: 0.5, metalness: 0.5 });
+
+          // Grama sob a usina, encostando na placa da subestação
+          const plantGrass = new THREE.Mesh(new THREE.BoxGeometry(26, 0.4, 26), matGrass);
+          plantGrass.position.set(0, -0.21, 0);
+          plantGrass.receiveShadow = true;
+          plantWorld.add(plantGrass);
+
+          // 1. Base e borda de perigo
+          const basePad = new THREE.Mesh(new THREE.BoxGeometry(16, 0.6, 16), new THREE.MeshStandardMaterial({ color: '#b2b9c0', roughness: 0.8 }));
+          basePad.position.y = -0.3;
+          basePad.receiveShadow = true;
+          plantWorld.add(basePad);
+
+          const borderRim = new THREE.Mesh(new THREE.BoxGeometry(16.8, 0.2, 16.8), new THREE.MeshStandardMaterial({ map: hazardTex, roughness: 0.5 }));
+          borderRim.position.y = -0.05;
+          borderRim.receiveShadow = true;
+          plantWorld.add(borderRim);
+
+          // 2. Prédio principal alto com duas chaminés
+          const mainBuildingGroup = new THREE.Group();
+
+          const mainMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(4.6, 6.8, 4.6),
+            new THREE.MeshStandardMaterial({ color: '#9ca6b0', map: winTex, roughness: 0.6 })
+          );
+          mainMesh.position.set(-3.2, 3.4, -3.2);
+          mainMesh.castShadow = true;
+          mainMesh.receiveShadow = true;
+          mainBuildingGroup.add(mainMesh);
+
+          const roofBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.0, 2.2), concreteMat);
+          roofBox.position.set(-3.2, 7.3, -3.2);
+          roofBox.castShadow = true;
+          mainBuildingGroup.add(roofBox);
+
+          const createChimney = (x, z, height, radiusBottom, radiusTop, stripes) => {
+            const chimGroup = new THREE.Group();
+            const chimMesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 24), concreteMat);
+            chimMesh.castShadow = true;
+            chimGroup.add(chimMesh);
+
+            stripes.forEach(yOffset => {
+              const ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop + 0.02, radiusTop + 0.04, 0.45, 24), redChamberMat);
+              ringMesh.position.y = yOffset;
+              chimGroup.add(ringMesh);
+            });
+
+            chimGroup.position.set(x, height / 2 + 6.8, z);
+            return chimGroup;
+          };
+
+          mainBuildingGroup.add(createChimney(-4.0, -4.0, 5.2, 0.75, 0.55, [1.5, 0.6]));
+          mainBuildingGroup.add(createChimney(-2.4, -4.2, 4.2, 0.60, 0.45, [1.2, 0.4]));
+          plantWorld.add(mainBuildingGroup);
+
+          // 3. Prédio intermediário com ventoinhas no teto
+          const midBuildingGroup = new THREE.Group();
+
+          const midMesh = new THREE.Mesh(new THREE.BoxGeometry(4.4, 4.8, 4.4), new THREE.MeshStandardMaterial({ color: '#88949e', roughness: 0.6 }));
+          midMesh.position.set(1.5, 2.4, -3.2);
+          midMesh.castShadow = true;
+          midMesh.receiveShadow = true;
+          midBuildingGroup.add(midMesh);
+
+          const ventGeo = new THREE.PlaneGeometry(1.8, 1.2);
+          const ventMat = new THREE.MeshStandardMaterial({ map: ventTex, roughness: 0.4 });
+          const ventMesh1 = new THREE.Mesh(ventGeo, ventMat);
+          ventMesh1.position.set(1.5, 3.2, -0.99);
+          midBuildingGroup.add(ventMesh1);
+
+          const ventMesh2 = ventMesh1.clone();
+          ventMesh2.position.set(1.5, 1.6, -0.99);
+          midBuildingGroup.add(ventMesh2);
+
+          const createRoofFan = (x, z, scale = 1) => {
+            const fanGroup = new THREE.Group();
+            fanGroup.position.set(x, 4.85, z);
+
+            const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.75 * scale, 0.8 * scale, 0.3 * scale, 24), darkMetalMat);
+            housing.position.y = 0.15 * scale;
+            housing.castShadow = true;
+            fanGroup.add(housing);
+
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.7 * scale, 0.05 * scale, 8, 24), yellowStripMat);
+            rim.rotation.x = Math.PI / 2;
+            rim.position.y = 0.3 * scale;
+            fanGroup.add(rim);
+
+            const bladeGroup = new THREE.Group();
+            bladeGroup.position.y = 0.25 * scale;
+            const bladeGeo = new THREE.BoxGeometry(1.2 * scale, 0.02 * scale, 0.18 * scale);
+            for (let i = 0; i < 4; i++) {
+              const blade = new THREE.Mesh(bladeGeo, darkMetalMat);
+              blade.rotation.y = (i * Math.PI) / 4;
+              bladeGroup.add(blade);
+            }
+            fanGroup.add(bladeGroup);
+            plantFans.push(bladeGroup);
+
+            return fanGroup;
+          };
+
+          [[0.4, -2.2], [2.6, -2.2], [0.4, -4.2], [2.6, -4.2]].forEach(([fx, fz]) => {
+            midBuildingGroup.add(createRoofFan(fx, fz, 0.95));
+          });
+          plantWorld.add(midBuildingGroup);
+
+          // 4. Prédio laranja frontal, baixo, com chaminés listradas
+          const frontBuildingGroup = new THREE.Group();
+
+          const frontMesh = new THREE.Mesh(new THREE.BoxGeometry(5.8, 2.6, 4.2), orangeMat);
+          frontMesh.position.set(-2.6, 1.3, 1.8);
+          frontMesh.castShadow = true;
+          frontMesh.receiveShadow = true;
+          frontBuildingGroup.add(frontMesh);
+
+          const roofPlate = new THREE.Mesh(new THREE.BoxGeometry(5.82, 0.2, 4.22), roofRedMat);
+          roofPlate.position.set(-2.6, 2.7, 1.8);
+          roofPlate.castShadow = true;
+          frontBuildingGroup.add(roofPlate);
+
+          const createFrontChimney = (x, z) => {
+            const cGroup = new THREE.Group();
+            cGroup.position.set(x, 2.8, z);
+
+            const baseCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 3.2, 20), redChamberMat);
+            baseCyl.position.y = 1.6;
+            baseCyl.castShadow = true;
+            cGroup.add(baseCyl);
+
+            const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.49, 0.6, 20), yellowStripMat);
+            ring.position.y = 2.2;
+            cGroup.add(ring);
+
+            return cGroup;
+          };
+
+          frontBuildingGroup.add(createFrontChimney(-4.6, 0.8));
+          frontBuildingGroup.add(createFrontChimney(-3.6, 0.2));
+
+          [[-1.8, 1.0], [-1.8, 2.4], [-0.4, 1.8]].forEach(([fx, fz]) => {
+            frontBuildingGroup.add(createRoofFan(fx, fz, 0.8));
+          });
+
+          const pipeCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(-5.5, 0.4, 2.2),
+            new THREE.Vector3(-5.8, 0.4, 2.2),
+            new THREE.Vector3(-5.8, 1.8, 2.2),
+            new THREE.Vector3(-5.5, 1.8, 2.2)
+          ]);
+          const ductMesh = new THREE.Mesh(new THREE.TubeGeometry(pipeCurve, 20, 0.12, 12, false), silverPipeMat);
+          ductMesh.castShadow = true;
+          frontBuildingGroup.add(ductMesh);
+          plantWorld.add(frontBuildingGroup);
+
+          // 5. Pátio de transformadores
+          const yardGroup = new THREE.Group();
+
+          const basinWall = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.5, 5.2), new THREE.MeshStandardMaterial({ color: '#c2c9d0', roughness: 0.7 }));
+          basinWall.position.set(3.2, 0.25, 2.2);
+          basinWall.receiveShadow = true;
+          yardGroup.add(basinWall);
+
+          const yardGravel = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.1, 4.8), new THREE.MeshStandardMaterial({ color: '#68727a', roughness: 0.9 }));
+          yardGravel.position.set(3.2, 0.48, 2.2);
+          yardGroup.add(yardGravel);
+
+          const createYardTransformer = (x, z) => {
+            const transGroup = new THREE.Group();
+            transGroup.position.set(x, 0.53, z);
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.3, 1.1), transformerMat);
+            body.position.y = 0.65;
+            body.castShadow = true;
+            transGroup.add(body);
+
+            for (let side = -0.6; side <= 0.6; side += 0.2) {
+              const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.0, 1.25), transformerMat);
+              fin.position.set(side, 0.65, 0);
+              transGroup.add(fin);
+            }
+
+            for (let ix = -0.4; ix <= 0.4; ix += 0.4) {
+              const stackGroup = new THREE.Group();
+              stackGroup.position.set(ix, 1.3, 0);
+
+              const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 8), darkMetalMat);
+              rod.position.y = 0.35;
+              stackGroup.add(rod);
+
+              for (let h = 0.15; h <= 0.55; h += 0.1) {
+                const disc = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.03, 8, 16), insulatorMat);
+                disc.rotation.x = Math.PI / 2;
+                disc.position.y = h;
+                stackGroup.add(disc);
+              }
+              transGroup.add(stackGroup);
+            }
+
+            return transGroup;
+          };
+
+          yardGroup.add(createYardTransformer(2.0, 1.8));
+          yardGroup.add(createYardTransformer(4.2, 1.8));
+
+          const towerMat = new THREE.MeshStandardMaterial({ color: '#b0b8c0', roughness: 0.4, metalness: 0.6 });
+          const createGantryPole = (x, z) => {
+            const poleGroup = new THREE.Group();
+            poleGroup.position.set(x, 0.5, z);
+
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.6, 12), towerMat);
+            pole.position.y = 1.3;
+            pole.castShadow = true;
+            poleGroup.add(pole);
+
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.08, 16), towerMat);
+            cap.position.y = 2.6;
+            poleGroup.add(cap);
+
+            return poleGroup;
+          };
+
+          yardGroup.add(createGantryPole(2.0, 3.8));
+          yardGroup.add(createGantryPole(4.2, 3.8));
+
+          const yardCableMat = new THREE.LineBasicMaterial({ color: '#2b2d42', linewidth: 2 });
+          [[2.0], [4.2]].forEach(([cx]) => {
+            const points = [new THREE.Vector3(cx, 3.1, 3.8), new THREE.Vector3(cx, 2.2, 1.8)];
+            yardGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), yardCableMat));
+          });
+          plantWorld.add(yardGroup);
+
+          // 6. Tambores de óleo
+          const createDrum = (x, z, color) => {
+            const drum = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.22, 0.22, 0.65, 16),
+              new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.3 })
+            );
+            drum.position.set(x, 0.325, z);
+            drum.castShadow = true;
+            return drum;
+          };
+
+          plantWorld.add(createDrum(0.8, 3.6, '#ffb703'));
+          plantWorld.add(createDrum(1.3, 3.8, '#d90429'));
+          plantWorld.add(createDrum(0.9, 4.2, '#ffb703'));
+          plantWorld.add(createDrum(1.4, 4.4, '#33383f'));
+
+          // 7. Fumaça das chaminés e faísca do pátio
+          const steamGeo = new THREE.SphereGeometry(0.18, 8, 8);
+          const steamMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45 });
+          const steamEmitters = [
+            { x: -4.0, y: 12.0, z: -4.0 },
+            { x: -2.4, y: 11.0, z: -4.2 },
+            { x: -4.6, y: 6.0, z: 0.8 },
+            { x: -3.6, y: 6.0, z: 0.2 }
+          ];
+
+          steamEmitters.forEach(emitter => {
+            for (let i = 0; i < 6; i++) {
+              const p = new THREE.Mesh(steamGeo, steamMat.clone());
+              p.position.set(
+                emitter.x + (Math.random() - 0.5) * 0.2,
+                emitter.y + Math.random() * 1.5,
+                emitter.z + (Math.random() - 0.5) * 0.2
+              );
+              p.userData = {
+                baseY: emitter.y,
+                emitterX: emitter.x,
+                emitterZ: emitter.z,
+                speed: 0.015 + Math.random() * 0.02,
+                scaleSpeed: 0.008
+              };
+              plantWorld.add(p);
+              plantSteam.push(p);
+            }
+          });
+
+          plantSparkLight = new THREE.PointLight('#4cc9f0', 0, 6);
+          plantSparkLight.position.set(3.1, 2.8, 2.8);
+          plantWorld.add(plantSparkLight);
+        };
+
+        buildPowerPlant();
+
         // --- SISTEMA DE SELEÇÃO E RAYCASTING (CLIQUE NOS COMPONENTES) ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
@@ -760,6 +1496,58 @@
               posArr[i * 3 + 2] = pt.z;
             }
             p.geometry.attributes.position.needsUpdate = true;
+          });
+
+          // Usina: ventoinhas girando, fumaça nas chaminés e faísca no pátio
+          plantFans.forEach(fan => {
+            fan.rotation.y += 0.25;
+          });
+          plantSteam.forEach(p => {
+            p.position.y += p.userData.speed;
+            p.position.x += Math.sin(time * 2 + p.position.y) * 0.005;
+            p.scale.addScalar(p.userData.scaleSpeed);
+            p.material.opacity -= 0.004;
+
+            if (p.material.opacity <= 0 || p.position.y > p.userData.baseY + 3.0) {
+              p.position.y = p.userData.baseY;
+              p.position.x = p.userData.emitterX + (Math.random() - 0.5) * 0.2;
+              p.position.z = p.userData.emitterZ + (Math.random() - 0.5) * 0.2;
+              p.scale.set(1, 1, 1);
+              p.material.opacity = 0.45;
+            }
+          });
+          if (plantSparkLight) {
+            plantSparkLight.intensity = Math.random() > 0.94 ? Math.random() * 3.5 : Math.max(0, plantSparkLight.intensity - 0.2);
+          }
+
+          // Cidade: pulsos, cabos e janelas seguem o estado do disjuntor
+          const cityOn = breakerClosedRef.current;
+          cityPulses.forEach(p => {
+            p.visible = cityOn;
+            if (cityOn) {
+              p.userData.progress = (p.userData.progress + p.userData.speed) % 1;
+              p.position.copy(p.userData.curve.getPoint(p.userData.progress));
+            }
+          });
+          cityWires.forEach(w => {
+            w.mesh.material.color.setHex(cityOn ? w.baseColor : 0x64748b);
+            w.mesh.material.emissive.setHex(cityOn ? w.baseColor : 0x000000);
+          });
+          cityWindows.forEach(win => win.material.color.setHex(cityOn ? 0xfef08a : 0x334155));
+
+          // Pessoas caminhando: posição pela distância percorrida, passos sincronizados com ela
+          walkers.forEach(w => {
+            const travelled = time * w.speed + w.offset;
+            const s = samplePath(w.path, travelled);
+            w.group.position.set(s.x, 0.35, s.z);
+            w.group.rotation.y = s.heading;
+
+            const swing = Math.sin(travelled * 4.5) * 0.7;
+            const { leftLeg, rightLeg, leftArm, rightArm } = w.group.userData;
+            leftLeg.rotation.x = swing;
+            rightLeg.rotation.x = -swing;
+            leftArm.rotation.x = -swing * 0.8;
+            rightArm.rotation.x = swing * 0.8;
           });
 
           // Animação suave de pulso do transformador quando energizado
@@ -830,6 +1618,18 @@
         const controls = controlsRef.current;
 
         switch (preset) {
+          case 'overview':
+            controls.object.position.set(84, 58, 56);
+            controls.target.set(22, 0, -8);
+            break;
+          case 'plant':
+            controls.object.position.set(46, 21, 36);
+            controls.target.set(24, 3, 14);
+            break;
+          case 'city':
+            controls.object.position.set(66, 30, 16);
+            controls.target.set(40, 2, -18);
+            break;
           case 'iso':
             controls.object.position.set(22, 18, 22);
             controls.target.set(0, 2.5, 0);
@@ -927,6 +1727,9 @@
                 <Icons.Camera /> Câmera Presets
               </div>
               <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => setCameraPreset('overview')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Visão Geral</button>
+                <button onClick={() => setCameraPreset('city')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Cidade</button>
+                <button onClick={() => setCameraPreset('plant')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Usina</button>
                 <button onClick={() => setCameraPreset('iso')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Isométrica</button>
                 <button onClick={() => setCameraPreset('top')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Planta Baixa</button>
                 <button onClick={() => setCameraPreset('trafo')} className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs text-slate-200 border border-slate-700">Trafo 01</button>
