@@ -350,14 +350,19 @@
           const pMin = -7.3;
           const pMax = 7.3;
           const height = 1.8;
+          // Portão no lado leste (para a usina): vão entre gateZ - gateHalf e gateZ + gateHalf
+          const gateZ = 0.35;
+          const gateHalf = 1.4;
 
           // Postes de Canto e Intermediários
           const postGeo = new THREE.CylinderGeometry(0.06, 0.06, height);
           const fencePositions = [];
 
           for (let i = pMin; i <= pMax; i += 1.83) {
-            fencePositions.push([i, pMin], [i, pMax], [pMin, i], [pMax, i]);
+            fencePositions.push([i, pMin], [i, pMax], [pMin, i]);
+            if (Math.abs(i - gateZ) > gateHalf) fencePositions.push([pMax, i]);
           }
+          fencePositions.push([pMax, gateZ - gateHalf], [pMax, gateZ + gateHalf]);
 
           fencePositions.forEach(([x, z]) => {
             const post = new THREE.Mesh(postGeo, matFence);
@@ -383,7 +388,8 @@
             createRail(pMin, pMin, pMax, pMin, h);
             createRail(pMin, pMax, pMax, pMax, h);
             createRail(pMin, pMin, pMin, pMax, h);
-            createRail(pMax, pMin, pMax, pMax, h);
+            createRail(pMax, pMin, pMax, gateZ - gateHalf, h);
+            createRail(pMax, gateZ + gateHalf, pMax, pMax, h);
           });
 
           // Placa de Sinalização "PERIGO ALTA TENSÃO ⚡"
@@ -783,8 +789,22 @@
         };
 
         const walkerDefs = [
-          { color: '#ff7a1a', mode: 'loop', speed: 1.3, offset: 0, points: [[-6.3, 6.3], [6.3, 6.3], [6.3, -6.3], [-6.3, -6.3]] },
-          { color: '#ffd23f', mode: 'loop', speed: 1.1, offset: 25, points: [[-6.3, -6.3], [6.3, -6.3], [6.3, 6.3], [-6.3, 6.3]] }
+          {
+            color: '#ff7a1a', mode: 'loop', speed: 1.3, offset: 0,
+            points: [
+              [-6.3, 6.3], [6.3, 6.3], [6.3, 0.35],
+              [14.2, 0.35], [14.2, -6.5], [23.2, -6.5], [23.2, 6.8], [11, 6.8], [11, 0.35],
+              [6.3, 0.35], [6.3, -6.3], [-6.3, -6.3]
+            ]
+          },
+          {
+            color: '#ffd23f', mode: 'loop', speed: 1.1, offset: 45,
+            points: [
+              [-6.3, -6.3], [6.3, -6.3], [6.3, 0.35],
+              [11, 0.35], [11, 6.8], [23.2, 6.8], [23.2, -6.5], [14.2, -6.5], [14.2, 0.35],
+              [6.3, 0.35], [6.3, 6.3], [-6.3, 6.3]
+            ]
+          }
         ];
 
         const walkers = walkerDefs.map(def => {
