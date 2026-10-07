@@ -412,7 +412,7 @@ Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 
 
 - **Nome:** uma placa em pórtico na entrada, com o nome **Treetech em verde** e uma pequena árvore, legível dos dois lados. O verde é o único tom forte da empresa; o prédio é claro e neutro.
 - **Prédio:** 10 × 6 e 4 unidades de altura, com piso, paredes, janelas, porta e telhado com um aparelho de ar-condicionado. Abre e fecha como o escritório da usina: o clique no prédio alterna o telhado, e as paredes baixam a 30% da altura quando ele abre.
-- **Interior:** uma mesa com monitor, teclado e cadeira, e ao lado a **torre do servidor RabbitMQ**, com uma etiqueta "RabbitMQ" e um LED verde. A tela do monitor mostra "Management", "RabbitMQ", "broker porta 5672" e "online".
+- **Interior:** o escritório principal tem **5 mesas com PC** em duas fileiras (3 junto à parede norte e 2 no meio), **5 funcionários sentados** (um em cada mesa, em tons de verde) e **1 funcionário andando** pelo corredor entre as fileiras. A mesa central da fileira norte é a do servidor: ao lado dela fica a **torre do servidor RabbitMQ**, com uma etiqueta "RabbitMQ" e um LED verde, e o monitor dela mostra "Management", "RabbitMQ", "broker porta 5672" e "online". Os funcionários sentados movem os braços e a cabeça como quem digita, como no escritório da usina.
 - **Câmera:** o preset **Treetech** abre o telhado e mostra o interior. A Visão Geral foi afastada para enquadrar a nova empresa.
 - **Ligação com o escritório da usina:** ver a seção 12.6.3.
 
@@ -434,10 +434,27 @@ Os 3 PCs do escritório da usina estão ligados ao servidor RabbitMQ da Treetech
 - **Câmera:** o preset **Rede** enquadra o trajeto dos cabos e a fila.
 - **Fora do que existe:** o exchange (roteamento por routing key) não tem representação própria, só uma fila. Não há dados reais, painel de métricas nem simulação de falha (broker caído, consumidor lento).
 
+### 12.6.4 Sala do painel de telas (anexo da Treetech)
+
+Um anexo de 6 × 6 na lado oeste do escritório da Treetech, com uma base de concreto ampliada e uma parede divisória compartilhada com o escritório principal. Ele abre e fecha junto com o escritório (o mesmo telhado e as mesmas paredes baixas).
+
+- **Painel:** uma parede de **4 × 2 telas** (4,8 × 1,5 unidades) em pé sobre duas colunas, voltada para o sul. Uma única imagem de 1920 × 600 é desenhada em um canvas e cortada em 8 telas por molduras escuras.
+- **Operadores:** 2 mesas com PC e 2 funcionários sentados, virados para o painel.
+- **Dashboard ao vivo**, redesenhado a cada 0,5 s com os dados da simulação de rede (seção 12.6.3):
+  - *Mensagens / s*: taxa média das publicadas (em laranja) e das consumidas (em verde) nos últimos 5 s.
+  - *Fila*: profundidade atual, com uma barra.
+  - *Conexões*: os 3 PCs, com o papel de cada um (produtor ou consumidor).
+  - *Subestação*: estado do disjuntor, potência e carga, lidos da interface da subestação.
+  - *Mensagens por segundo (60 s)*: gráfico das duas séries, em duas telas de largura.
+  - *Totais*: publicadas, consumidas e acks.
+  - *Eventos*: as 6 últimas ações, com a hora (por exemplo, "PC 1 publicou", "PC 3 consumiu").
+- **Câmera:** o preset **Painel** abre o telhado e mostra o painel de frente.
+- **Dados simulados:** os números vêm da mesma simulação dos pacotes, não de um RabbitMQ real. Os valores só refletem o tempo real se a página renderizar em tempo real; com quadros lentos, a simulação anda mais devagar que o relógio, porque cada passo é limitado a 0,1 s.
+
 ### 12.7 Câmera, luz e sombras
 
 - Câmera em perspectiva (FOV 40) com `OrbitControls`, distância entre 5 e 220 e sem passar do chão.
-- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Treetech** (abre o telhado da segunda empresa), **Rede** (cabos e fila do RabbitMQ), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
+- Presets: **Visão Geral** (inicial), **Cidade**, **Usina**, **Interior** (abre o telhado do escritório), **Treetech** (abre o telhado da segunda empresa), **Rede** (cabos e fila do RabbitMQ), **Painel** (parede de telas do dashboard), **Isométrica** (a vista de 22, 18, 22 sobre a subestação), **Planta Baixa**, **Trafo 01** e **Pórtico AT**.
 - Sol com sombras em um quadro de ±80 e mapa de 4096, para a cena inteira ter sombra. Isso deixa a sombra da subestação menos nítida que no código original.
 
 ### 12.8 Paleta
