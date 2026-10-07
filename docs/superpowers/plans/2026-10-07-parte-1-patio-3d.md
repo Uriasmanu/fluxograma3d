@@ -3071,4 +3071,4 @@ Liste para o usuário todos os arquivos criados e alterados, para ele fazer o co
 
 ## Status
 
-Plano escrito, ainda não executado.
+Executado em 2026-10-07. Todas as 13 tasks concluídas; 69 testes passando; typecheck e build ok. A verificação visual foi feita com screenshots do Chrome headless (os quatro pontos de vista). Medir fps em GPU real e em celular fica pendente (abra a página com `?stats`).

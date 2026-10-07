@@ -2,7 +2,7 @@
 
 - **Data:** 2026-10-07
 - **Parte:** 1 (ver [roadmap](../../roadmap.md))
-- **Status:** Plano de implementação escrito, aguardando revisão
+- **Status:** Implementada, aguardando revisão
 - **Plano:** [2026-10-07-parte-1-patio-3d.md](../plans/2026-10-07-parte-1-patio-3d.md)
 - **Repositório:** `fluxograma3d`
 
