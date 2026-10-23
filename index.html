@@ -859,6 +859,11 @@
           ],
           remaining: 20,
           paintDashboard: (ctx, W, H, time) => {
+            ctx.save();
+            failureSim.dashboardRaw(ctx, W, H, time);
+            ctx.restore();
+          },
+          dashboardRaw: (ctx, W, H, time) => {
             const tw = W / 4;
             const th = H / 2;
             const on = Math.floor(time * 2.5) % 2 === 0;
@@ -915,6 +920,11 @@
             big('0:' + String(rem).padStart(2, '0'), 3, 1, 110, on ? '#ffffff' : '#ff3030', 90);
           },
           paintAlert: (ctx, w, h, time) => {
+            ctx.save();
+            failureSim.alertRaw(ctx, w, h, time);
+            ctx.restore();
+          },
+          alertRaw: (ctx, w, h, time) => {
             const u = h / 200;
             const dead = failureSim.exploded;
             const on = Math.floor(time * 2.5) % 2 === 0;
@@ -6242,6 +6252,7 @@
           ctx.fillStyle = '#0f1720';
           ctx.fillRect(0, 0, W, H);
           ctx.textBaseline = 'top';
+          ctx.textAlign = 'left';
 
           const title = (text, col, row) => {
             ctx.fillStyle = grey;
