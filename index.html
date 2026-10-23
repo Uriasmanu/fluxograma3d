@@ -166,9 +166,16 @@
       const [breakerClosed, setBreakerClosed] = useState(true);
       const [loadLevel] = useState(78); // %
       const [alarms, setAlarms] = useState([]);
-      const [failure, setFailure] = useState({ phase: 'idle', remaining: 60, alerts: [], muted: false });
+      const [failure, setFailure] = useState({ phase: 'idle', remaining: 20, alerts: [] });
       const failureUiRef = useRef(null);
-      failureUiRef.current = setFailure;
+      const prevViewMode = useRef(null);
+      failureUiRef.current = (next) => {
+        setFailure(next);
+        if (next.phase === 'idle' && prevViewMode.current) {
+          setViewMode(prevViewMode.current);
+          prevViewMode.current = null;
+        }
+      };
       const [tourStep, setTourStep] = useState(null);
 
       const sceneRef = useRef(null);
@@ -835,7 +842,13 @@
         // 9b. EQUIPE DE SOFTWARE DA TREETECH: pessoas detalhadas, telas animadas e cantinhos de café
         const officeLife = { update: null, obstacles: [], persons: [], coffee: [], tickers: [], debug: {} };
         const failureSim = {
-          active: false, exploded: false, blackout: false, elapsed: 0, mqTexture: null,
+          active: false, exploded: false, mode: 'normal', waveR: 0, elapsed: 0, mqTexture: null,
+          lit: (x, z) => {
+            const m = failureSim.mode;
+            if (m === 'dark') return Math.hypot(x, z) >= failureSim.waveR;
+            if (m === 'restore') return Math.hypot(x, z) < failureSim.waveR;
+            return true;
+          },
           paintAlert: (ctx, w, h, time) => {
             const u = h / 200;
             const dead = failureSim.exploded;
@@ -1278,7 +1291,7 @@
               const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.09), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(logoCanvas), transparent: true, alphaTest: 0.2 }));
               logo.position.set(-0.11, 0.38, 0.1415);
               upper.add(logo);
-              [-1, 1].forEach(sd => addMesh(upper, box(0.014, 0.2, 0.012), whiteMat, sd * 0.045, 0.43, 0.142, false));
+              if (o.top === 'hoodie') [-1, 1].forEach(sd => addMesh(upper, box(0.014, 0.2, 0.012), whiteMat, sd * 0.045, 0.43, 0.142, false));
             } else {
               addMesh(upper, box(0.02, 0.36, 0.01), greenMat, 0, 0.38, 0.139);
               addMesh(upper, box(0.07, 0.1, 0.01), whiteMat, 0, 0.17, 0.143);
@@ -1390,6 +1403,7 @@
             });
             const longSleeves = o.sleeves === 'long';
             const rolled = o.sleeves === 'rolled';
+            const tee = o.sleeves === 'tee';
             let tattooMat = null;
             if (o.tattoo !== undefined) {
               const tc = canvasOf(256, 128);
@@ -1434,7 +1448,10 @@
               const fore = makeSeg(FARM, 0.048, foreMat);
               if (s === 1) addMesh(fore, new THREE.CylinderGeometry(0.052, 0.052, 0.03, 8), darkMat, 0, -0.24, 0);
               if (rolled) addMesh(fore, new THREE.CylinderGeometry(0.064, 0.064, 0.06, 10), shirtMat, 0, -0.02, 0);
-              return { s, upper: makeSeg(UARM, 0.055, shirtMat), fore, elbow: makeBall(0.054, longSleeves || rolled ? shirtMat : skinMat), hand: makeBall(0.06, skinMat) };
+              const upperMat = tee ? (tattooMat && o.tattoo === ai ? tattooMat : skinMat) : shirtMat;
+              const upperSeg = makeSeg(UARM, 0.055, upperMat);
+              if (tee) addMesh(upperSeg, new THREE.CylinderGeometry(0.066, 0.062, 0.13, 10), shirtMat, 0, -0.045, 0);
+              return { s, upper: upperSeg, fore, elbow: makeBall(0.054, longSleeves || rolled ? shirtMat : skinMat), hand: makeBall(0.06, skinMat) };
             });
 
             const mug = new THREE.Group();
@@ -1608,17 +1625,26 @@
             addMesh(furniture, box(0.06, 0.03, 0.1), plasticMat, dx + 0.32, 0.795, deskZ + 0.34);
             aabb('mouse', dx + 0.32, 0.795, deskZ + 0.34, 0.06, 0.03, 0.1);
 
-            addMesh(furniture, box(0.5, 0.06, 0.5), chairMat, dx, 0.45, seatZ);
-            addMesh(furniture, box(0.5, 0.55, 0.06), chairMat, dx, 0.75, seatZ + 0.25);
-            addMesh(furniture, new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8), chairMat, dx, 0.22, seatZ);
+            const chairParent = cfg.coffeeRun ? new THREE.Group() : furniture;
+            if (cfg.coffeeRun) furniture.add(chairParent);
+            const chairObs = (name, cx, cy, cz, sx, sy, sz) => {
+              if (!cfg.coffeeRun) {
+                aabb(name, cx, cy, cz, sx, sy, sz);
+                return;
+              }
+              officeLife.obstacles.push({ name, dyn: () => ({ min: [cx - sx / 2, cy - sy / 2, cz - sz / 2 + chairParent.position.z], max: [cx + sx / 2, cy + sy / 2, cz + sz / 2 + chairParent.position.z] }) });
+            };
+            addMesh(chairParent, box(0.5, 0.06, 0.5), chairMat, dx, 0.45, seatZ);
+            addMesh(chairParent, box(0.5, 0.55, 0.06), chairMat, dx, 0.75, seatZ + 0.25);
+            addMesh(chairParent, new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8), chairMat, dx, 0.22, seatZ);
             for (let i = 0; i < 5; i++) {
               const a = (i / 5) * Math.PI * 2;
-              const leg = addMesh(furniture, box(0.04, 0.03, 0.26), chairMat, dx + Math.sin(a) * 0.13, 0.04, seatZ + Math.cos(a) * 0.13);
+              const leg = addMesh(chairParent, box(0.04, 0.03, 0.26), chairMat, dx + Math.sin(a) * 0.13, 0.04, seatZ + Math.cos(a) * 0.13);
               leg.rotation.y = a;
             }
-            aabb('cadeira-assento', dx, 0.45, seatZ, 0.5, 0.06, 0.5);
-            aabb('cadeira-encosto', dx, 0.75, seatZ + 0.25, 0.5, 0.55, 0.06);
-            aabb('cadeira-base', dx, 0.1, seatZ, 0.5, 0.2, 0.5);
+            chairObs('cadeira-assento', dx, 0.45, seatZ, 0.5, 0.06, 0.5);
+            chairObs('cadeira-encosto', dx, 0.75, seatZ + 0.25, 0.5, 0.55, 0.06);
+            chairObs('cadeira-base', dx, 0.1, seatZ, 0.5, 0.2, 0.5);
 
             const extra = cfg.extra;
             if (extra === 'laptop') {
@@ -1658,8 +1684,164 @@
             const hand1 = V(0, 0, 0);
             const tmp = V(0, 0, 0);
 
+            const run = cfg.coffeeRun ? (() => {
+              const corner = cfg.coffeeRun;
+              const T = 25;
+              const st = { clock: 0, last: null, p: null, lastEnd: 0 };
+              const pts = [[dx, seatZ], [dx - 0.5, seatZ], [dx - 1.1, seatZ - 0.08], [corner.stand.x, corner.stand.z]];
+              const path = makePath(pts, 'pingpong');
+              const L = path.total;
+              const root = person.root;
+              const toLoc = (x, y, z, out) => {
+                const ddx = x - root.position.x;
+                const ddz = z - root.position.z;
+                const c = Math.cos(root.rotation.y);
+                const sn = Math.sin(root.rotation.y);
+                return out.set(ddx * c - ddz * sn, y, ddx * sn + ddz * c);
+              };
+              const toWld = (v, out) => {
+                const c = Math.cos(root.rotation.y);
+                const sn = Math.sin(root.rotation.y);
+                return out.set(root.position.x + v.x * c + v.z * sn, v.y, root.position.z - v.x * sn + v.z * c);
+              };
+              const C = V(-0.13, 1.12, 0.34);
+              const Roff = V(0.28, 0.95, 0.08);
+              const tA = V(0, 0, 0);
+              const tB = V(0, 0, 0);
+              const tW = V(0, 0, 0);
+              const mugAtTable = V(0, 0, 0);
+              const sipAmt = (p, a) => win(a, a + 0.6, a + 1.5, a + 2.1, p);
+              return {
+                get clock() { return st.clock; },
+                advance: (time) => {
+                  const dt = st.last === null ? 0 : Math.min(0.1, time - st.last);
+                  st.last = time;
+                  if (st.p === null) {
+                    st.clock += dt;
+                    const u26 = st.clock % cycleLen;
+                    if (st.clock - st.lastEnd > 40 && u26 > 1 && u26 < 7) st.p = 0;
+                  } else {
+                    st.p += dt;
+                    if (st.p >= T) {
+                      st.p = null;
+                      st.lastEnd = st.clock;
+                      root.position.set(dx, 0, seatZ);
+                      root.rotation.y = Math.PI;
+                      chairParent.position.z = 0;
+                      corner.carafePos.copy(corner.carafeRest);
+                      corner.tilt = 0;
+                      corner.level = 1;
+                      corner.streamOn = false;
+                    }
+                  }
+                },
+                apply: (time) => {
+                  const p = st.p;
+                  if (p === null) return;
+                  const w = ss(0, 1.2, p) * (1 - ss(23.2, 25, p));
+                  let dist;
+                  if (p < 1.4) dist = 0;
+                  else if (p < 4.2) dist = ss(0, 1, (p - 1.4) / 2.8) * L;
+                  else if (p < 19) dist = L;
+                  else if (p < 22) dist = L + ss(0, 1, (p - 19) / 3) * L;
+                  else dist = 2 * L - 0.0001;
+                  const smp = samplePath(path, dist);
+                  let yaw = Math.PI;
+                  if (p >= 1.4 && p < 4.2) yaw = lerpAngle(lerpAngle(Math.PI, smp.heading, ss(1.4, 2.0, p)), Math.PI, ss(3.5, 4.2, p));
+                  else if (p >= 19 && p < 22) yaw = lerpAngle(lerpAngle(Math.PI, smp.heading, ss(19, 19.6, p)), Math.PI, ss(21.3, 22, p));
+                  root.position.set(p < 1.4 || p >= 22 ? dx : smp.x, 0, p < 1.4 || p >= 22 ? seatZ : smp.z);
+                  root.rotation.y = yaw;
+                  chairParent.position.z = 0.6 * ss(0, 0.8, p) * (1 - ss(22.2, 23.2, p));
+
+                  const walking = (p >= 1.4 && p < 4.2) || (p >= 19 && p < 22);
+                  const amp = walking ? Math.min(1, Math.sin(Math.PI * ss(0, 1, p < 10 ? (p - 1.4) / 2.8 : (p - 19) / 3)) * 2.5) : 0;
+                  const ph = dist * 4;
+                  const hipY = 0.88 - 0.015 * Math.abs(Math.sin(ph)) * amp;
+                  const sit = ss(22.3, 24, p);
+                  const stand = 1 - sit;
+
+                  // alvo da rotina de levantar
+                  const tgtHipY = sit > 0 ? 0.88 + (0.64 - 0.88) * sit : hipY;
+                  const place = win(4.2, 4.9, 5.0, 5.2, p) + win(10.4, 11.2, 11.2, 11.4, p);
+                  const tableHold = p >= 4.9 && p < 11.4;
+                  toLoc(corner.mugTable.x, corner.mugTable.y + 0.0, corner.mugTable.z, mugAtTable);
+                  const mugHandTable = V(mugAtTable.x, mugAtTable.y, mugAtTable.z - 0.06);
+                  const pourT = ss(6.4, 7.4, p) * (1 - ss(9.6, 10.6, p));
+                  const grabCar = ss(5.2, 6.2, p) * (1 - ss(11.0, 11.8, p));
+                  const lean = p >= 4.2 && p < 11.8 ? 0.26 * ss(4.2, 5.0, p) * (1 - ss(11.0, 11.8, p)) + 0.03 : 0.03;
+
+                  // carafa
+                  tA.set(corner.carafeRest.x, corner.carafeRest.y, corner.carafeRest.z);
+                  tB.set(corner.mugTable.x, corner.mugTable.y + 0.2, corner.mugTable.z - 0.07);
+                  corner.carafePos.lerpVectors(tA, tB, pourT);
+                  corner.tilt = 0.95 * pourT;
+                  corner.level = 1 - 0.3 * ss(7.4, 9.4, p);
+                  corner.streamOn = pourT > 0.85;
+                  corner.streamFrom.set(corner.carafePos.x, corner.carafePos.y + 0.06, corner.carafePos.z + 0.07);
+                  corner.streamTo.set(corner.mugTable.x, corner.mugTable.y + 0.02 + 0.07 * ss(7.4, 9.4, p), corner.mugTable.z);
+
+                  // mao esquerda (indice 1) pega a carafa; direita (indice 0) cuida da caneca
+                  toLoc(corner.carafePos.x, corner.carafePos.y, corner.carafePos.z - 0.07, tW);
+                  const hand1 = V(0, 0, 0);
+                  hand1.copy(Roff).lerp(V(tW.x, tW.y, tW.z), grabCar);
+                  if (walking) {
+                    const sw = Math.sin(ph) * 0.45 * amp;
+                    hand1.set(0.27, 1.41 - 0.57 * Math.cos(sw), 0.02 + 0.57 * Math.sin(sw));
+                  }
+                  const hand0 = V(0, 0, 0);
+                  const toRest = ss(0.2, 0.9, p) * (1 - ss(0.9, 1.6, p));
+                  hand0.copy(mugHandRest).lerp(C, ss(0.9, 1.6, p));
+                  hand0.lerp(mugHandTable, place);
+                  if (sit > 0) {
+                    hand0.copy(C).lerp(mugHandRest, ss(22.8, 23.8, p));
+                  }
+                  const sipW = (sipAmt(p, 12.3) + sipAmt(p, 16.5)) * (p > 11.6 && p < 19 ? 1 : 0);
+
+                  const feet0 = V(-0.11, 0, 0);
+                  const feet1 = V(0.11, 0, 0);
+                  if (walking) {
+                    [feet0, feet1].forEach((f, i) => {
+                      const phi = ph + (i === 0 ? 0 : Math.PI);
+                      f.set(i === 0 ? -0.11 : 0.11, 0.1 * Math.max(0, -Math.sin(phi)) * amp, 0.25 * Math.cos(phi) * amp);
+                    });
+                  }
+                  const feetFwd = ss(22.0, 23.6, p) * 0.5;
+                  const seatedFeet = ss(22.0, 23.6, p);
+                  feet0.set(-0.11 - 0.01 * seatedFeet, 0, feet0.z + feetFwd);
+                  feet1.set(0.11 + 0.01 * seatedFeet, feet1.y, feet1.z + feetFwd);
+
+                  // mistura com a pose sentada
+                  s.hip.set(0, s.hip.y + (tgtHipY - s.hip.y) * w, 0);
+                  s.lean += (lean - s.lean) * w;
+                  s.feet[0].lerp(feet0, w);
+                  s.feet[1].lerp(feet1, w);
+                  s.hands[0].lerp(hand0, w);
+                  s.hands[1].lerp(hand1, w);
+                  s.sip += (sipW - s.sip) * w;
+                  s.chin *= 1 - w;
+                  const drinking = p > 11.6 && p < 19;
+                  s.headX += ((drinking ? 0.02 : (p > 4.2 && p < 11.6 ? 0.25 : 0.05)) - s.headX) * w;
+                  s.headY += ((drinking ? Math.sin(time * 0.8) * 0.4 : 0) - s.headY) * w;
+                  s.smile = Math.max(s.smile, drinking ? 0.6 * w : 0);
+                  if (w > 0.5) {
+                    if (tableHold) {
+                      s.mugPos = V(mugAtTable.x, mugAtTable.y, mugAtTable.z);
+                    } else if (p > 24) {
+                      s.mugPos = mugRest;
+                    } else if (p < 0.9) {
+                      s.mugPos = mugRest;
+                    } else {
+                      s.mugPos = null;
+                    }
+                    if (p >= 7.4 && p < 24) s.level = 0.2 + 0.75 * ss(7.4, 9.4, p) - 0.3 * ss(12.3, 18.6, p);
+                  }
+                }
+              };
+            })() : null;
+
             officeLife.tickers.push((time) => {
-              const t = time + cfg.phase;
+              if (run) run.advance(time);
+              const t = (run ? run.clock : time) + cfg.phase;
               const u = t % cycleLen;
               const n = Math.floor(t / cycleLen);
               const wMouse = win(8, 8.4, 10.6, 11, u);
@@ -1698,8 +1880,79 @@
               s.mugHand = 0;
               s.mugPos = sipOn ? null : mugRest;
               s.level = Math.max(0.1, 0.85 - 0.18 * (n % 4) - 0.18 * ss(15, 16.5, u));
+              if (run) run.apply(time);
               person.apply(s);
             });
+          };
+
+          // ---------- Canto do café: cafeteira de coador na parede norte ----------
+          const buildCoffeeCorner = () => {
+            const tx = -1.6;
+            const tz = -3.98;
+            addMesh(furniture, box(0.9, 0.04, 0.45), deskMat, tx, 0.78, tz);
+            [-0.4, 0.4].forEach(ox => [-0.19, 0.19].forEach(oz => addMesh(furniture, box(0.04, 0.76, 0.04), deskMat, tx + ox, 0.38, tz + oz)));
+            aabb('mesa-cafe', tx, 0.78, tz, 0.9, 0.04, 0.45);
+            [-0.4, 0.4].forEach(ox => [-0.19, 0.19].forEach(oz => aabb('perna-mesa-cafe', tx + ox, 0.38, tz + oz, 0.04, 0.76, 0.04)));
+            const darkPlastic = stdMat('#1f2429', 0.4);
+            addMesh(furniture, box(0.3, 0.04, 0.26), darkPlastic, tx, 0.82, tz - 0.05);
+            addMesh(furniture, box(0.26, 0.42, 0.1), darkPlastic, tx, 1.03, tz - 0.15);
+            addMesh(furniture, box(0.26, 0.08, 0.24), darkPlastic, tx, 1.18, tz - 0.07);
+            aabb('cafeteira-base', tx, 0.82, tz - 0.05, 0.3, 0.04, 0.26);
+            aabb('cafeteira-coluna', tx, 1.03, tz - 0.15, 0.26, 0.42, 0.1);
+            aabb('cafeteira-topo', tx, 1.18, tz - 0.07, 0.26, 0.08, 0.24);
+            const led = addMesh(furniture, new THREE.SphereGeometry(0.014, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff3a2a' }), tx + 0.08, 1.06, tz - 0.098, false);
+            const glassMat2 = new THREE.MeshStandardMaterial({ color: '#cfe4ee', roughness: 0.1, transparent: true, opacity: 0.35, depthWrite: false });
+            const carafe = new THREE.Group();
+            addMesh(carafe, new THREE.CylinderGeometry(0.058, 0.064, 0.16, 12), glassMat2, 0, 0, 0, false);
+            const brew = addMesh(carafe, new THREE.CylinderGeometry(0.054, 0.06, 0.1, 12), stdMat('#3b2416', 0.3), 0, -0.03, 0, false);
+            addMesh(carafe, new THREE.CylinderGeometry(0.062, 0.062, 0.02, 12), darkPlastic, 0, 0.09, 0, false);
+            addMesh(carafe, box(0.02, 0.1, 0.02), darkPlastic, 0.075, 0.02, 0, false);
+            addMesh(carafe, box(0.03, 0.02, 0.04), darkPlastic, 0, 0.075, 0.06, false);
+            furniture.add(carafe);
+            const stream = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 6), new THREE.MeshBasicMaterial({ color: '#4b2e1e' }));
+            stream.visible = false;
+            furniture.add(stream);
+            const steamPuffs = [0, 1, 2].map(() => {
+              const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.3, depthWrite: false }));
+              furniture.add(puff);
+              return puff;
+            });
+            const corner = {
+              stand: { x: tx, z: -3.5 },
+              carafeRest: V(tx, 0.92, tz - 0.01),
+              mugTable: V(tx, 0.845, -3.8),
+              carafePos: V(tx, 0.92, tz - 0.01),
+              tilt: 0,
+              level: 1,
+              streamFrom: V(0, 0, 0),
+              streamTo: V(0, 0, 0),
+              streamOn: false
+            };
+            const up = V(0, 1, 0);
+            const dir = V(0, 0, 0);
+            officeLife.tickers.push((time) => {
+              carafe.position.copy(corner.carafePos);
+              carafe.rotation.x = corner.tilt;
+              brew.scale.y = Math.max(0.05, corner.level);
+              brew.position.y = -0.08 + 0.05 * corner.level;
+              led.material.color.set(Math.floor(time * 2) % 2 === 0 ? '#2fdf6a' : '#1a8a40');
+              stream.visible = corner.streamOn;
+              if (corner.streamOn) {
+                dir.subVectors(corner.streamTo, corner.streamFrom);
+                const len = Math.max(0.01, dir.length());
+                stream.position.addVectors(corner.streamFrom, corner.streamTo).multiplyScalar(0.5);
+                stream.scale.set(1, len, 1);
+                stream.quaternion.setFromUnitVectors(up, dir.normalize());
+              }
+              steamPuffs.forEach((puff, i) => {
+                const q = (time * 0.5 + i / 3) % 1;
+                puff.visible = corner.level > 0.3;
+                puff.position.set(corner.carafePos.x + Math.sin(time * 2 + i) * 0.01, corner.carafePos.y + 0.12 + q * 0.2, corner.carafePos.z);
+                puff.scale.setScalar(0.015 + q * 0.03);
+                puff.material.opacity = (1 - q) * 0.3;
+              });
+            });
+            return corner;
           };
 
           // ---------- Estação de café ----------
@@ -1970,7 +2223,8 @@
           // ---------- Montagem ----------
           const P1 = { skin: '#f1c7a1', shirt: '#7fa88c', pants: '#2f3b52', hair: '#4a3426', hairStyle: 'short', top: 'tee', sleeves: 'short', mugColor: '#e8ecef' };
           const person = (extra) => Object.assign({}, P1, extra);
-          addDevDesk(0, -3.7, { rabbit: true, phase: 3, glance: 1, seed: 0.1, person: person({ shirt: '#17181b', pants: '#2a2f3a', shoe: '#e8ecef', hair: '#1d1612', hairStyle: 'fade', glasses: 'round', bigEyes: true, stubble: true, logo: true, top: 'hoodie', sleeves: 'rolled', tattoo: 0, skin: '#d6a07a', mugColor: '#1f2429', blinkSeed: 0.4 }) });
+          const coffeeCorner = buildCoffeeCorner();
+          addDevDesk(0, -3.7, { rabbit: true, coffeeRun: coffeeCorner, phase: 3, glance: 1, seed: 0.1, person: person({ shirt: '#17181b', pants: '#2a2f3a', shoe: '#e8ecef', hair: '#1d1612', hairStyle: 'fade', glasses: 'round', bigEyes: true, stubble: true, logo: true, top: 'tee', sleeves: 'tee', tattoo: 0, skin: '#d6a07a', mugColor: '#1f2429', blinkSeed: 0.4 }) });
           addDevDesk(-3.2, -3.7, { screen: 'code', seed: 0.2, phase: 0, glance: 1, extra: 'laptop', person: person({ shirt: '#8aa4c0', hair: '#1f1a17', hairStyle: 'curly', glasses: true, top: 'shirt', skin: '#9c6b4a', mugColor: '#c0504a', blinkSeed: 1.1 }) });
           addDevDesk(3.2, -3.7, { screen: 'term', seed: 0.6, phase: 7, glance: -1, extra: 'notebook', person: person({ shirt: '#d9783a', hair: '#7a4a2a', hairStyle: 'long', top: 'tee', skin: '#f1c7a1', headphones: true, mugColor: '#2f9e5e', blinkSeed: 2.2 }) });
           addDevDesk(-2.2, -1.0, { screen: 'git', seed: 0.8, phase: 12, glance: 1, extra: 'notebook', person: person({ shirt: '#9db8a4', hair: '#c9a64a', hairStyle: 'bun', top: 'hoodie', sleeves: 'long', skin: '#f6d2b0', glasses: true, mugColor: '#e8c34a', blinkSeed: 0.9 }) });
@@ -2035,7 +2289,7 @@
               lastDraw = time;
               screens.forEach(sc => {
                 if (sc.home) {
-                  if (failureSim.blackout) {
+                  if (homeLife.on[sc.plot] === false) {
                     sc.ctx.fillStyle = '#05080a';
                     sc.ctx.fillRect(0, 0, 320, 200);
                   } else sc.paint(sc.ctx, time, sc.seed);
@@ -2049,18 +2303,20 @@
         };
 
         // 9c. VIDA NAS CASAS DA CIDADE: pessoinhas usando energia elétrica dentro e fora das casas
-        const homeLife = { tickers: [], obstacles: [], persons: [], actors: [], lights: [], update: null, power: true, hooks: [] };
+        const homeLife = { tickers: [], obstacles: [], persons: [], actors: [], lights: [], update: null, hooks: [], on: [], plotPos: [], curPlot: 0 };
         const homeKit = (() => {
           const { GREEN, V, stdMat, box, addMesh, ss, win, lerpAngle, canvasOf, screenPainters, makeScreen, createPerson, makeState } = lifeKit;
           const SC = 0.62;
+          const addTicker = (fn) => homeLife.tickers.push({ fn, plot: homeLife.curPlot });
           const makeHomeScreen = (kind, seed) => {
             const sc = makeScreen(kind, seed);
             sc.home = true;
+            sc.plot = homeLife.curPlot;
             return sc;
           };
           const lightMat = (hex, offHex = 0x2a2f36) => {
             const mat = new THREE.MeshBasicMaterial({ color: hex });
-            homeLife.lights.push({ mat, on: hex, off: offHex });
+            homeLife.lights.push({ mat, on: hex, off: offHex, plot: homeLife.curPlot });
             return mat;
           };
 
@@ -2237,7 +2493,7 @@
             homeLife.persons.push({ root, plot: ctx.idx, kind: ctx.kind });
             const s = makeState();
             s.mugVisible = false;
-            homeLife.actors.push({ person, s, root });
+            homeLife.actors.push({ person, s, root, plot: homeLife.curPlot });
             return {
               person, root, s,
               toLocal: (px, py, pz, out) => {
@@ -2374,7 +2630,7 @@
             const pointAt = V(0, 0, 0);
             const t = V(0, 0, 0);
             const cycle = 22;
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               const n = Math.floor((time + o.phase) / cycle);
               const wEat = win(5, 5.8, 7.6, 8.4, u);
@@ -2463,7 +2719,7 @@
               for (let i = 0; i < keys.length - 1; i++) if (u < keys[i + 1][0]) return keys[i][1] + (keys[i + 1][1] - keys[i][1]) * ss(keys[i][0], keys[i + 1][0], u);
               return keys[keys.length - 1][1];
             };
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               const fridgeOpen = win(1, 2.2, 3.2, 4.4, u) * 1.5;
               doorPivot.rotation.y = -fridgeOpen;
@@ -2554,7 +2810,7 @@
             const mugW = V(-1.3, F + 0.56, 0.26);
             const mugL = V(0, 0, 0);
             const upW = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               const wMouse = win(7, 7.5, 9.5, 10, u);
               const wSip = win(11, 11.6, 14.4, 15, u);
@@ -2638,7 +2894,7 @@
             const board = V(0, 0, 0);
             const bl = V(0, 0, 0);
             const ironPos = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               drum.rotation.x = time * 6;
               clothes.position.y = F + 0.3 + Math.sin(time * 6) * 0.05;
@@ -2703,7 +2959,7 @@
             const actor = makeActor(ctx, o.n, 0.55, F + 0.28, -0.82, 0);
             const s = actor.s;
             const cycle = 24;
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               standPose(s, 0.16);
               s.lean = -0.1;
@@ -2765,7 +3021,7 @@
             const gripA = V(0, 0, 0);
             const gripB = V(0, 0, 0);
             const tmpV = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const dist = time * 0.22;
               const smp = samplePath(path, dist);
               actor.root.position.set(smp.x, F, smp.z);
@@ -2848,7 +3104,7 @@
             const cycle = 22;
             const glassRest = V(0.1, F + 0.34, 0.7);
             const gl = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               fanHead.rotation.y = Math.sin(time * 0.5) * 0.5;
               blades.rotation.x = time * 25;
@@ -2934,7 +3190,7 @@
             const tl = V(0, 0, 0);
             const tl2 = V(0, 0, 0);
             const phoneL = V(-0.08, 1.15, 0.3);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               const toChargerYaw = Math.PI;
               const yaw = lerpAngle(Math.PI, 0, ss(3, 4.2, u) * (1 - ss(21, 22.2, u)));
@@ -3000,7 +3256,7 @@
             const s = actor.s;
             const gripL = V(0, 0, 0);
             const gripR = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const dist = time * 0.42;
               const smp = samplePath(path, dist);
               actor.root.position.set(smp.x, Y, smp.z);
@@ -3061,7 +3317,7 @@
             const cycle = 24;
             const gl = V(0, 0, 0);
             const platePos = V(0.34, Y + 0.42, -2.5);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               standPose(s, 0.88);
               s.lean = 0.12;
@@ -3120,7 +3376,7 @@
             const s = actor.s;
             const hl = V(0, 0, 0);
             const hr = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const dist = time * 0.2;
               const smp = samplePath(path, dist);
               actor.root.position.set(smp.x, Y, smp.z);
@@ -3195,7 +3451,7 @@
             const kl = V(0, 0, 0);
             const mugW = V(0.98, Y + 0.38, 2.72);
             const ml = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               sitPose(s, 0.53, 0.42);
               s.lean = 0.12;
@@ -3256,7 +3512,7 @@
             const hl = V(0, 0, 0);
             const hr = V(0, 0, 0);
             const target = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const sweep = Math.sin(time * 0.8);
               const rowY = Y + 0.55 + Math.sin(time * 2.4) * 0.12;
               actor.root.position.x = 0.45 + sweep * 0.35;
@@ -3323,7 +3579,7 @@
             gt.rotation.set(0, 0, 0.15);
             root.add(gt);
             const cycle = 24;
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const u = (time + o.phase) % cycle;
               const solo = win(8, 9, 14, 15, u);
               standPose(s, 0.88);
@@ -3378,19 +3634,25 @@
             addMesh(parent, box(0.02, 0.06, 0.05), whiteMat, 1.2, Y + 0.45, 1.64, false);
             const cable = makeCable(parent, '#2b323a', 0.011, 10);
             const chLed = addMesh(parent, new THREE.SphereGeometry(0.014, 6, 6), new THREE.MeshBasicMaterial({ color: 0x6fdf8a }), 1.2, Y + 0.11, 2.4, false);
-            homeLife.hooks.push(() => {
-              drone.position.y = Math.max(Y + 0.04, drone.position.y - 0.05);
-              drone.rotation.x += 0.03;
+            homeLife.hooks.push({
+              plot: homeLife.curPlot,
+              fn: () => {
+                drone.position.y = Math.max(Y + 0.04, drone.position.y - 0.05);
+                drone.rotation.x += 0.03;
+              }
             });
             const actor = makeActor(ctx, o.n, 0.0, Y, 2.4, 0);
             const s = actor.s;
             const ctl = V(0, 0, 0);
             const dl = V(0, 0, 0);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               const px = Math.sin(time * 0.6) * 0.9;
               const pz = 2.7 + Math.sin(time * 1.2) * 0.35;
               const py = Y + 1.55 + Math.sin(time * 0.9) * 0.25;
-              drone.position.set(px, py, pz);
+              drone.position.x = px;
+              drone.position.z = pz;
+              drone.position.y += (py - drone.position.y) * 0.05;
+              drone.rotation.x *= 0.92;
               drone.rotation.y = time * 0.3;
               drone.rotation.z = Math.cos(time * 0.6) * 0.15;
               rotors.forEach((r, i) => r.rotation.y = time * 60 + i);
@@ -3414,6 +3676,8 @@
 
           // ---------- Casa com interior ----------
           const buildHome = (plotGroup, plot, idx, lamps) => {
+            homeLife.curPlot = idx;
+            homeLife.plotPos[idx] = { x: plot.x, z: plot.z };
             const stories = plot.stories;
             const t = 0.12;
             const Y0 = 0.35;
@@ -3483,7 +3747,7 @@
             const mark = addMesh(disc, box(0.01, 0.006, 0.03), new THREE.MeshBasicMaterial({ color: 0xd9534f }), 0.02, 0, 0, false);
             const digits = addMesh(plotGroup, box(0.1, 0.03, 0.01), new THREE.MeshBasicMaterial({ color: 0x1b4d2c }), 1.7, Y0 + 0.86, 1.685, false);
             base.obs('medidor', 1.7, Y0 + 0.95, 1.65, 0.16, 0.22, 0.1);
-            homeLife.tickers.push((time) => {
+            addTicker((time) => {
               disc.rotation.y = time * (1.5 + (idx % 3) * 0.6);
               digits.material.color.setHex(Math.floor(time * 2 + idx) % 2 ? 0x2fbf6a : 0x1b4d2c);
             });
@@ -3502,22 +3766,29 @@
           indoor.game = indoor.tv;
           return { buildHome, indoor };
         })();
-        homeLife.setPower = (on) => {
-          homeLife.power = on;
-          homeLife.lights.forEach(l => l.mat.color.setHex(on ? l.on : l.off));
+        homeLife.plotOn = (idx) => {
+          const pp = homeLife.plotPos[idx];
+          if (!pp) return true;
+          return breakerClosedRef.current && failureSim.lit(cityWorld.position.x + pp.x, cityWorld.position.z + pp.z);
         };
         homeLife.update = (time) => {
-          if (homeLife.power) {
-            homeLife.tickers.forEach(tick => tick(time));
-            return;
-          }
-          homeLife.hooks.forEach(hook => hook(time));
-          homeLife.actors.forEach((a, i) => {
-            a.s.headY = Math.sin(time * 0.9 + i) * 0.6;
-            a.s.headX = -0.05 + Math.sin(time * 0.5 + i * 2) * 0.12;
-            a.s.smile = 0;
-            a.s.talk = 0;
-            a.person.apply(a.s);
+          homeLife.plotPos.forEach((pp, idx) => {
+            if (!pp) return;
+            const on = homeLife.plotOn(idx);
+            if (homeLife.on[idx] !== on) {
+              homeLife.on[idx] = on;
+              homeLife.lights.forEach(l => { if (l.plot === idx) l.mat.color.setHex(on ? l.on : l.off); });
+            }
+          });
+          homeLife.tickers.forEach(t => { if (homeLife.on[t.plot] !== false) t.fn(time); });
+          homeLife.hooks.forEach(hk => { if (homeLife.on[hk.plot] === false) hk.fn(time); });
+          homeLife.actors.forEach((ac, i) => {
+            if (homeLife.on[ac.plot] !== false) return;
+            ac.s.headY = Math.sin(time * 0.9 + i) * 0.6;
+            ac.s.headX = -0.05 + Math.sin(time * 0.5 + i * 2) * 0.12;
+            ac.s.smile = 0;
+            ac.s.talk = 0;
+            ac.person.apply(ac.s);
           });
         };
 
@@ -6193,17 +6464,17 @@
         };
 
         const applyDuskLamps = () => {
-          const cityOn = breakerClosedRef.current && !failureSim.blackout;
+          const litAt = (o) => breakerClosedRef.current && failureSim.lit(o.position.x, o.position.z);
           const d = duskState.level;
           duskGlows.forEach(glow => {
-            const on = d > 0.01 && (!glow.city || cityOn);
+            const on = d > 0.01 && (!glow.city || litAt(glow.obj));
             glow.obj.visible = on;
             if (on) {
               glow.obj.material.transparent = true;
               glow.obj.material.opacity = glow.max * d;
             }
           });
-          lampLights.forEach(({ light, city }) => { light.intensity = (!city || cityOn) ? 1.6 * d : 0; });
+          lampLights.forEach(({ light, city }) => { light.intensity = (!city || litAt(light)) ? 1.6 * d : 0; });
         };
 
         // Interface com o React: o tour liga o modo, abre os telhados e escolhe os rótulos
@@ -6285,9 +6556,10 @@
         };
         window.addEventListener('resize', handleResize);
 
-        // CENÁRIO DE FALHA: alarmes, fumaça, explosão do transformador, destruição da usina e apagão da cidade
+        // CENÁRIO DE FALHA: alarmes, fumaça, explosão do transformador, destruição da usina, apagão e restauração gradual
         const failureCtl = (() => {
-          const FAIL_SECONDS = 60;
+          const FAIL_SECONDS = 20;
+          const RESTORE_SECONDS = 13;
           const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
           const rnd = (a, b) => a + Math.random() * (b - a);
           const ss = (a, b, x) => {
@@ -6305,89 +6577,10 @@
             'Pressão do tanque acima do limite',
             'Ventilação forçada esgotada: risco de explosão'
           ];
-          const st = { phase: 'idle', t: 0, te: 0, last: 0, shake: 0, lastRem: -1, lastAlert: -1, mqNext: 0, mqSnap: null, spark: 0, smoke: 0, dust: 0, breakerDone: false, powerDone: false, siren: null };
+          const st = { phase: 'idle', t: 0, te: 0, tr: 0, last: 0, shake: 0, lastRem: -1, lastAlert: -1, mqNext: 0, mqSnap: null, spark: 0, smoke: 0, dust: 0, breakerDone: false, restoreBreaker: false, cam: null, screensBack: false, knockReleased: false };
           const shake = V3(0, 0, 0);
-
-          // ---------- áudio ----------
-          const audio = { ctx: null, muted: false, osc: null, lfo: null, gain: null };
-          const ensureAudio = () => {
-            try {
-              if (!audio.ctx) audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
-              if (audio.ctx.state === 'suspended') audio.ctx.resume();
-              return audio.ctx;
-            } catch (e) {
-              return null;
-            }
-          };
-          const startSiren = () => {
-            const ctx = audio.muted ? null : ensureAudio();
-            if (!ctx || audio.osc) return;
-            try {
-              audio.osc = ctx.createOscillator();
-              audio.lfo = ctx.createOscillator();
-              const depth = ctx.createGain();
-              audio.gain = ctx.createGain();
-              audio.osc.type = 'sawtooth';
-              audio.osc.frequency.value = 760;
-              audio.lfo.frequency.value = 0.9;
-              depth.gain.value = 190;
-              audio.gain.gain.value = 0.05;
-              audio.lfo.connect(depth);
-              depth.connect(audio.osc.frequency);
-              audio.osc.connect(audio.gain);
-              audio.gain.connect(ctx.destination);
-              audio.osc.start();
-              audio.lfo.start();
-            } catch (e) {
-              audio.osc = null;
-            }
-          };
-          const stopSiren = () => {
-            try {
-              if (audio.osc) {
-                audio.osc.stop();
-                audio.lfo.stop();
-              }
-            } catch (e) {
-              // já parado
-            }
-            audio.osc = null;
-            audio.lfo = null;
-          };
-          const boom = () => {
-            const ctx = audio.muted ? null : ensureAudio();
-            if (!ctx) return;
-            try {
-              const len = ctx.sampleRate * 3;
-              const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
-              const data = buffer.getChannelData(0);
-              for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.7));
-              const noise = ctx.createBufferSource();
-              noise.buffer = buffer;
-              const filter = ctx.createBiquadFilter();
-              filter.type = 'lowpass';
-              filter.frequency.setValueAtTime(1400, ctx.currentTime);
-              filter.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 2.5);
-              const gain = ctx.createGain();
-              gain.gain.value = 0.9;
-              noise.connect(filter);
-              filter.connect(gain);
-              gain.connect(ctx.destination);
-              noise.start();
-              const sub = ctx.createOscillator();
-              const subGain = ctx.createGain();
-              sub.frequency.setValueAtTime(70, ctx.currentTime);
-              sub.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 1.6);
-              subGain.gain.setValueAtTime(0.8, ctx.currentTime);
-              subGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
-              sub.connect(subGain);
-              subGain.connect(ctx.destination);
-              sub.start();
-              sub.stop(ctx.currentTime + 1.9);
-            } catch (e) {
-              // sem áudio
-            }
-          };
+          const AERIAL_POS = V3(54, 104, -4);
+          const AERIAL_TARGET = V3(54, 0, -18.5);
 
           // ---------- partículas ----------
           const makePool = (n, geo, matFactory) => Array.from({ length: n }, () => {
@@ -6397,8 +6590,8 @@
             return { mesh, life: 0, max: 1, vel: V3(0, 0, 0), grow: 0, op: 0, s0: 1 };
           });
           const sphereGeo = new THREE.SphereGeometry(1, 8, 6);
-          const smokePool = makePool(80, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#2a2a2a', transparent: true, opacity: 0, depthWrite: false }));
-          const dustPool = makePool(60, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#b9b2a6', transparent: true, opacity: 0, depthWrite: false }));
+          const smokePool = makePool(90, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#2a2a2a', transparent: true, opacity: 0, depthWrite: false }));
+          const dustPool = makePool(70, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#b9b2a6', transparent: true, opacity: 0, depthWrite: false }));
           const sparkPool = makePool(70, new THREE.SphereGeometry(0.06, 5, 4), () => new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
           const emit = (pool, x, y, z, vx, vy, vz, life, s0, grow, op) => {
             const p = pool.find(q => q.life <= 0);
@@ -6439,11 +6632,10 @@
             const cones = [0, 1, 2].map(i => {
               const cone = new THREE.Mesh(flameGeo, new THREE.MeshBasicMaterial({ color: i === 0 ? '#ff6a1a' : (i === 1 ? '#ffa030' : '#ffe08a'), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
               cone.position.set((i - 1) * 0.18 * size, 0.55 * size * (1 - i * 0.2), (i % 2) * 0.15 * size);
-              cone.scale.setScalar(size * (1 - i * 0.25));
               group.add(cone);
               return cone;
             });
-            const fire = { group, cones, size, phase: Math.random() * 10 };
+            const fire = { group, cones, size, phase: Math.random() * 10, amount: 1 };
             fires.push(fire);
             return fire;
           };
@@ -6451,7 +6643,8 @@
             if (!f.group.visible) return;
             f.cones.forEach((cone, i) => {
               const k = 1 + 0.28 * Math.sin(time * (9 + i * 3) + f.phase + i);
-              cone.scale.set(f.size * (1 - i * 0.25) * (0.9 + 0.2 * Math.sin(time * 7 + i)), f.size * (1 - i * 0.25) * k, f.size * (1 - i * 0.25));
+              const base = f.size * (1 - i * 0.25) * f.amount;
+              cone.scale.set(base * (0.9 + 0.2 * Math.sin(time * 7 + i)), base * k, base);
             });
           });
 
@@ -6556,6 +6749,7 @@
             const a = Math.random() * Math.PI * 2;
             const h = speed * rnd(0.4, 1);
             p.mesh.position.set(x, y, z);
+            p.mesh.scale.setScalar(1);
             p.vel.set(Math.cos(a) * h, up * rnd(0.5, 1), Math.sin(a) * h);
             p.ang.set(rnd(-8, 8), rnd(-8, 8), rnd(-8, 8));
             p.rest = false;
@@ -6601,11 +6795,7 @@
           addWreck(0.12, 0.8, 1.6, 1.5, 0.9, -0.3, 0, -0.35);
           addWreck(1.0, 0.1, 1.1, 0.5, 1.1, -0.5, 0.2, 0.15);
           [-1.0, -0.4, 0.2, 0.8].forEach((x, i) => addWreck(0.12, 1.1 - i * 0.2, 1.4, x, 0.7, -2.0, 0.1 * i, 0.12 * (i - 1.5)));
-          makeFire(wreck, 0, 0.9, 0, 2.2);
-          makeFire(wreck, -1.1, 0.8, 0.5, 1.5);
-          makeFire(wreck, 1.0, 0.8, -0.6, 1.7);
-          makeFire(wreck, 0.2, 0.7, -2.0, 1.2);
-          makeFire(wreck, 1.6, 0.6, 1.0, 1.0);
+          const wreckFires = [makeFire(wreck, 0, 0.9, 0, 2.2), makeFire(wreck, -1.1, 0.8, 0.5, 1.5), makeFire(wreck, 1.0, 0.8, -0.6, 1.7), makeFire(wreck, 0.2, 0.7, -2.0, 1.2), makeFire(wreck, 1.6, 0.6, 1.0, 1.0)];
 
           const buildingDefs = [
             { key: 'main', c: [-3.2, -3.2], size: [4.6, 4.6], h: 7 },
@@ -6647,36 +6837,57 @@
             const away = obj.position.clone().setY(0);
             if (away.lengthSq() < 0.01) away.set(1, 0, 0);
             away.normalize();
-            knocked.push({ obj, start: obj.position.clone(), dir: away, rot: obj.rotation.clone(), t: 0, flag: ownerFlag });
+            knocked.push({ obj, start: obj.position.clone(), dir: away, t: 0, flag: ownerFlag });
           };
           const evac = [];
-          plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(8, 50) }));
-          if (plantOfficeWalker.group) evac.push({ obj: plantOfficeWalker.group, at: rnd(8, 50) });
+          plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(2, FAIL_SECONDS - 4), back: rnd(5, 11) }));
+          if (plantOfficeWalker.group) evac.push({ obj: plantOfficeWalker.group, at: rnd(2, FAIL_SECONDS - 4), back: rnd(5, 11) });
+
+          // ---------- vans: deixam de ir até a subestação depois da explosão ----------
+          const vanPathOriginal = vans.length ? vans[0].path : null;
+          const vanDeliveredOriginal = vans.length ? vans[0].deliveredAt : 0;
+          const vanPathDetour = makePath([[54, 23.0], [54, 18.5], [10, 18.5], [10, 20.5], [54, 20.5]], 'loop');
+          const rerouteVans = (time, toDetour) => vans.forEach(van => {
+            const target = toDetour ? vanPathDetour : vanPathOriginal;
+            if (!target || van.path === target) return;
+            const trav = time * van.speed + van.offset;
+            const along = ((trav % van.path.total) + van.path.total) % van.path.total;
+            if (along > 40) return;
+            van.path = target;
+            van.offset = along - time * van.speed;
+            van.deliveredAt = toDetour ? 1e9 : vanDeliveredOriginal;
+          });
 
           const ui = (force) => {
-            const rem = st.phase === 'countdown' ? Math.max(0, Math.ceil(FAIL_SECONDS - st.t)) : 0;
-            const alertIdx = Math.floor(st.t / 3.5);
+            let rem = 0;
+            if (st.phase === 'countdown') rem = Math.max(0, Math.ceil(FAIL_SECONDS - st.t));
+            if (st.phase === 'restoring') rem = Math.round(100 * Math.min(1, st.tr / RESTORE_SECONDS));
+            const alertIdx = Math.floor(st.t / 3.2);
             if (!force && rem === st.lastRem && alertIdx === st.lastAlert) return;
             st.lastRem = rem;
             st.lastAlert = alertIdx;
             const stack = [];
             for (let i = 0; i < 3; i++) if (alertIdx - i >= 0 && st.phase === 'countdown') stack.push(ALERTS[(alertIdx - i) % ALERTS.length]);
-            if (failureUiRef.current) failureUiRef.current({ phase: st.phase, remaining: rem, alerts: stack, muted: audio.muted });
+            if (failureUiRef.current) failureUiRef.current({ phase: st.phase, remaining: rem, alerts: stack });
           };
 
           const setShown = (list, visible) => list.forEach(o => { o.visible = visible; });
 
-          const explode = () => {
+          const explode = (time) => {
             st.phase = 'exploded';
             st.te = 0;
+            st.cam = null;
+            st.breakerDone = false;
             failureSim.exploded = true;
             trafoGroup.visible = false;
             setShown(attached, false);
             if (installer.props) installer.props.visible = false;
             wreck.visible = true;
-            fires.filter(f => wreck.children.includes(f.group)).forEach(f => { f.group.visible = true; });
-            boom();
-            stopSiren();
+            wreck.scale.set(1, 1, 1);
+            wreckFires.forEach(f => {
+              f.group.visible = true;
+              f.amount = 1;
+            });
             st.shake = 1;
             flash.style.transition = 'none';
             flash.style.opacity = '1';
@@ -6713,17 +6924,15 @@
             shake,
             start: () => {
               if (st.phase !== 'idle') return;
-              ensureAudio();
               st.phase = 'countdown';
               st.t = 0;
               st.breakerDone = false;
-              st.powerDone = false;
               st.lastRem = -1;
               st.lastAlert = -1;
               failureSim.active = true;
               failureSim.exploded = false;
               failureSim.elapsed = 0;
-              failureSim.blackout = false;
+              failureSim.mode = 'normal';
               beacons.forEach(b => { b.g.visible = true; });
               try {
                 const mq = failureSim.mqTexture;
@@ -6731,78 +6940,21 @@
               } catch (e) {
                 st.mqSnap = null;
               }
-              startSiren();
               setAlarms(prev => [{ id: Date.now(), msg: 'FALHA CRÍTICA: Trafo 01 em sobretemperatura. Explosão iminente!', time: new Date().toLocaleTimeString() }, ...prev]);
               ui(true);
             },
-            reset: () => {
-              st.phase = 'idle';
-              st.t = 0;
-              failureSim.active = false;
-              failureSim.exploded = false;
-              failureSim.blackout = false;
-              failureSim.elapsed = 0;
-              stopSiren();
-              trafoGroup.visible = true;
-              trafoGroup.position.x = 0;
-              trafoGroup.scale.set(1, 1, 1);
-              setShown(attached, true);
-              if (installer.props) installer.props.visible = true;
-              installer.disabled = false;
-              if (installer.rig) installer.rig.rotation.set(0, 0, 0);
-              walkers.forEach(w => {
-                w.knocked = false;
-                w.group.rotation.set(0, 0, 0);
-              });
-              knocked.length = 0;
-              wreck.visible = false;
-              fires.forEach(f => { f.group.visible = false; });
-              collapses.forEach(c => {
-                c.started = false;
-                c.ruin.visible = false;
-                const g = plantParts[c.def.key];
-                if (g) {
-                  g.visible = true;
-                  g.scale.set(1, 1, 1);
-                  g.position.set(0, 0, 0);
-                }
-              });
-              [smokePool, dustPool, sparkPool].forEach(pool => pool.forEach(p => { p.life = 0; p.mesh.visible = false; }));
-              debris.forEach(p => { p.rest = true; p.mesh.visible = false; });
-              fireballs.forEach(f => { f.mesh.visible = false; });
-              ring.visible = false;
-              dome.visible = false;
+            restore: () => {
+              if (st.phase !== 'exploded') return;
+              st.phase = 'restoring';
+              st.tr = 0;
+              st.screensBack = false;
+              st.knockReleased = false;
+              failureSim.mode = 'restore';
+              failureSim.waveR = 0;
               beacons.forEach(b => { b.g.visible = false; });
-              arcs.forEach(a => { a.line.visible = false; });
               alarmLight.intensity = 0;
-              blastLight.intensity = 0;
-              flash.style.transition = 'none';
-              flash.style.opacity = '0';
-              vignette.style.opacity = '0';
-              matTrafo.emissive.setHex(0x000000);
-              matTrafo.emissiveIntensity = 0;
-              matRadiator.emissive.setHex(0x000000);
-              matRadiator.emissiveIntensity = 0;
-              evac.forEach(e => { e.obj.visible = true; });
-              particleSystemsRef.current.forEach(p => { p.visible = true; });
-              homeLife.setPower(true);
-              try {
-                const mq = failureSim.mqTexture;
-                if (mq && st.mqSnap) {
-                  mq.image.getContext('2d').putImageData(st.mqSnap, 0, 0);
-                  mq.needsUpdate = true;
-                }
-              } catch (e) {
-                // sem restauração da tela
-              }
               setBreakerClosed(true);
-              setAlarms(prev => [{ id: Date.now(), msg: 'SISTEMA: Subestação restaurada e energizada.', time: new Date().toLocaleTimeString() }, ...prev]);
-              ui(true);
-            },
-            setMuted: (muted) => {
-              audio.muted = muted;
-              if (muted) stopSiren();
-              else if (st.phase === 'countdown') startSiren();
+              setAlarms(prev => [{ id: Date.now(), msg: 'SISTEMA: Restauração da subestação iniciada.', time: new Date().toLocaleTimeString() }, ...prev]);
               ui(true);
             },
             update: (time) => {
@@ -6819,52 +6971,55 @@
                 b.lamp.material.color.set(Math.floor(time * 4) % 2 ? '#ff2a2a' : '#ff9a9a');
               });
               shake.set(0, 0, 0);
-              if (st.phase === 'idle') return;
+              if (st.phase === 'idle') {
+                rerouteVans(time, false);
+                return;
+              }
 
               if (st.phase === 'countdown') {
                 st.t += dt;
-                failureSim.elapsed = st.t;
+                failureSim.elapsed = st.t * (60 / FAIL_SECONDS);
                 const p = Math.min(1, st.t / FAIL_SECONDS);
                 const pulse = 0.5 + 0.5 * Math.sin(time * (4 + 10 * p));
                 matTrafo.emissive.setHex(0xff2a10);
                 matTrafo.emissiveIntensity = (0.05 + 0.85 * p) * (0.6 + 0.4 * pulse);
                 matRadiator.emissive.setHex(0xff2a10);
                 matRadiator.emissiveIntensity = (0.04 + 0.7 * p) * (0.6 + 0.4 * pulse);
-                alarmLight.intensity = 3.2 * (0.5 + 0.5 * Math.sin(time * 6)) * ss(0, 3, st.t);
+                alarmLight.intensity = 3.2 * (0.5 + 0.5 * Math.sin(time * 6)) * ss(0, 1.5, st.t);
                 vignette.style.opacity = String(0.35 + 0.35 * Math.sin(time * 5));
-                trafoGroup.position.x = Math.sin(time * 55) * 0.006 * (1 + 5 * p) * ss(8, 20, st.t);
+                trafoGroup.position.x = Math.sin(time * 55) * 0.006 * (1 + 5 * p) * ss(2, 8, st.t);
                 const s = 1 + 0.012 * p * Math.sin(time * 18);
                 trafoGroup.scale.set(s, 1 + 0.015 * p * Math.sin(time * 22), s);
 
-                st.smoke += dt * (1 + 34 * Math.pow(Math.max(0, (st.t - 2) / 58), 1.2)) * (st.t > 2 ? 1 : 0);
+                st.smoke += dt * (st.t > 0.6 ? 2 + 34 * Math.pow(Math.max(0, (st.t - 0.6) / (FAIL_SECONDS - 0.6)), 1.1) : 0);
                 while (st.smoke >= 1) {
                   st.smoke -= 1;
-                  emit(smokePool, rnd(-1.2, 1.2), rnd(2.6, 3.8), rnd(-0.8, 0.6), rnd(0.2, 1.0), rnd(1.4, 2.6) + p * 2, rnd(-0.3, 0.3), rnd(3.5, 5.5), rnd(0.3, 0.5), rnd(1.4, 2.4), 0.55);
+                  emit(smokePool, rnd(-1.2, 1.2), rnd(2.6, 3.8), rnd(-0.8, 0.6), rnd(0.2, 1.0), rnd(1.4, 2.6) + p * 2, rnd(-0.3, 0.3), rnd(3, 4.5), rnd(0.3, 0.5), rnd(1.4, 2.4), 0.55);
                 }
-                st.spark += dt * (p > 0.12 ? 2 + 14 * p : 0);
+                st.spark += dt * (p > 0.1 ? 2 + 14 * p : 0);
                 while (st.spark >= 1) {
                   st.spark -= 1;
                   const bx = [-0.8, 0, 0.8][Math.floor(Math.random() * 3)];
                   emit(sparkPool, bx, 3.9, 0.4, rnd(-3, 3), rnd(2, 6), rnd(-3, 3), rnd(0.5, 1.1), 1, 0, 1);
                 }
                 updateArcs(p);
-                if (p > 0.7) st.shake = Math.max(st.shake, (p - 0.7) / 0.3 * 0.12);
+                if (p > 0.6) st.shake = Math.max(st.shake, (p - 0.6) / 0.4 * 0.12);
                 evac.forEach(e => { if (st.t > e.at) e.obj.visible = false; });
                 if (st.mqNext <= time && failureSim.mqTexture) {
                   st.mqNext = time + 0.2;
                   failureSim.paintAlert(failureSim.mqTexture.image.getContext('2d'), 512, 320, time);
                   failureSim.mqTexture.needsUpdate = true;
                 }
-                if (audio.gain) audio.gain.gain.value = 0.05 + 0.05 * p;
                 ui(false);
-                if (st.t >= FAIL_SECONDS) explode();
-              } else {
+                if (st.t >= FAIL_SECONDS) explode(time);
+              } else if (st.phase === 'exploded') {
                 st.te += dt;
                 const te = st.te;
                 blastLight.intensity = 38 * Math.exp(-te * 2.2);
                 alarmLight.intensity = 0;
                 vignette.style.opacity = '0';
                 trafoGroup.scale.set(1, 1, 1);
+                trafoGroup.position.x = 0;
                 fireballs.forEach(f => {
                   const q = Math.max(0, te - f.delay);
                   f.mesh.visible = q > 0 && q < 3;
@@ -6895,24 +7050,37 @@
                     if (c.tc >= 1.2) {
                       if (g) g.visible = false;
                       c.ruin.visible = true;
-                      c.ruinFires.forEach(f => { f.group.visible = true; });
+                      c.ruin.scale.set(1, 1, 1);
+                      c.ruinFires.forEach(f => {
+                        f.group.visible = true;
+                        f.amount = 1;
+                      });
                     }
                   }
                 });
 
-                st.shake = Math.max(0, st.shake - dt * 0.4);
-                if (te > 0.1 && !st.powerDone && te > 0.7) {
-                  st.powerDone = true;
-                  homeLife.setPower(false);
+                // apagão que se espalha a partir da subestação
+                if (te >= 0.9) {
+                  failureSim.mode = 'dark';
+                  failureSim.waveR = (te - 0.9) * 9;
                 }
-                const b = te >= 0.1 && !(te >= 0.22 && te < 0.38) && !(te >= 0.5 && te < 0.7);
-                failureSim.blackout = b || te >= 0.7;
-                if (te >= 0.9 && !st.breakerDone) {
+                if (failureSim.waveR >= 95 && !st.breakerDone) {
                   st.breakerDone = true;
                   setBreakerClosed(false);
                   setAlarms(prev => [{ id: Date.now(), msg: 'FALHA: Trafo 01 destruído. Cidade sem energia.', time: new Date().toLocaleTimeString() }, ...prev]);
                 }
+                rerouteVans(time, true);
 
+                // câmera sobe para uma vista aérea da cidade apagando
+                if (te >= 1.2) {
+                  if (!st.cam) st.cam = { t: 0, pos: controls.object.position.clone(), tgt: controls.target.clone() };
+                  st.cam.t = Math.min(1, st.cam.t + dt / 3.8);
+                  const e = ss(0, 1, st.cam.t);
+                  controls.object.position.lerpVectors(st.cam.pos, AERIAL_POS, e);
+                  controls.target.lerpVectors(st.cam.tgt, AERIAL_TARGET, e);
+                }
+
+                st.shake = Math.max(0, st.shake - dt * 0.4);
                 st.smoke += dt * 22;
                 while (st.smoke >= 1) {
                   st.smoke -= 1;
@@ -6937,24 +7105,148 @@
                   k.obj.position.set(k.start.x + k.dir.x * 3 * e, k.start.y + 0.15 * e, k.start.z + k.dir.z * 3 * e);
                   k.obj.rotation.x = -Math.PI / 2 * e;
                 });
+              } else {
+                // restauração gradual
+                st.tr += dt;
+                const tr = st.tr;
+                alarmLight.intensity = 0;
+                blastLight.intensity = 0;
+                ring.visible = false;
+                dome.visible = false;
+                rerouteVans(time, false);
+
+                // 1. fogo e fumaça diminuem, destroços somem
+                const calm = 1 - ss(0, 3, tr);
+                fires.forEach(f => { f.amount = calm; if (calm <= 0.01) f.group.visible = false; });
+                st.smoke += dt * 22 * calm;
+                while (st.smoke >= 1) {
+                  st.smoke -= 1;
+                  emit(smokePool, rnd(-1.8, 1.8), rnd(1.2, 2.4), rnd(-1.8, 1.8), rnd(0.4, 1.4), rnd(2.2, 4.2), rnd(-0.4, 0.4), rnd(4, 6), rnd(0.8, 1.2), rnd(2.6, 4), 0.6);
+                }
+                const shrink = 1 - ss(0.4, 3.2, tr);
+                debris.forEach(p => {
+                  if (!p.mesh.visible) return;
+                  p.mesh.scale.setScalar(Math.max(0.001, shrink));
+                  if (shrink <= 0.01) {
+                    p.mesh.visible = false;
+                    p.rest = true;
+                  }
+                });
+
+                // 2. prédios se reerguem
+                collapses.forEach((c, i) => {
+                  const tb = tr - 2.5 - i * 0.5;
+                  if (tb <= 0) return;
+                  const g = plantParts[c.def.key];
+                  const e = ss(0, 3.6, tb);
+                  if (g) {
+                    g.visible = true;
+                    g.position.x = 0;
+                    g.scale.y = 0.04 + 0.96 * e;
+                  }
+                  c.ruin.scale.y = Math.max(0.001, 1 - ss(0, 1.8, tb));
+                  if (c.ruin.scale.y <= 0.01) c.ruin.visible = false;
+                  if (tb < 3.6 && Math.random() < 0.5) emit(dustPool, c.wx + rnd(-2, 2), 0.4, c.wz + rnd(-2, 2), rnd(-0.6, 0.6), rnd(0.5, 1.5), rnd(-0.6, 0.6), rnd(2, 3), 1.0, 2.2, 0.35);
+                });
+
+                // 3. transformador reconstruído
+                const tt = tr - 3.2;
+                if (tt > 0) {
+                  wreck.scale.y = Math.max(0.001, 1 - ss(0, 2.2, tt));
+                  if (wreck.scale.y <= 0.01) wreck.visible = false;
+                  trafoGroup.visible = true;
+                  trafoGroup.position.x = 0;
+                  trafoGroup.scale.set(1, 0.03 + 0.97 * ss(0, 3.2, tt), 1);
+                  matTrafo.emissive.setHex(0x000000);
+                  matTrafo.emissiveIntensity = 0;
+                  matRadiator.emissive.setHex(0x000000);
+                  matRadiator.emissiveIntensity = 0;
+                  if (tt < 3.2 && Math.random() < 0.5) emit(sparkPool, rnd(-1.5, 1.5), 0.6 + 3 * ss(0, 3.2, tt), rnd(-1, 1), rnd(-2, 2), rnd(1, 4), rnd(-2, 2), rnd(0.3, 0.7), 1, 0, 1);
+                  if (tt > 3.2) {
+                    setShown(attached, true);
+                    if (installer.props) installer.props.visible = true;
+                  }
+                }
+
+                // 4. a energia volta em uma onda a partir da subestação
+                if (tr >= 4.5) {
+                  failureSim.waveR = (tr - 4.5) * 11;
+                  if (tr > 5) particleSystemsRef.current.forEach(p => { p.visible = true; });
+                }
+
+                // 5. telas e alarmes voltam ao normal
+                if (tr > 3 && !st.screensBack) {
+                  st.screensBack = true;
+                  failureSim.active = false;
+                  failureSim.exploded = false;
+                  try {
+                    const mq = failureSim.mqTexture;
+                    if (mq && st.mqSnap) {
+                      mq.image.getContext('2d').putImageData(st.mqSnap, 0, 0);
+                      mq.needsUpdate = true;
+                    }
+                  } catch (e) {
+                    // sem restauração da tela
+                  }
+                }
+                vignette.style.opacity = '0';
+
+                // 6. técnico e vigias se levantam e voltam ao trabalho; funcionários voltam
+                knocked.forEach(k => {
+                  const e = ss(7, 8.6, tr);
+                  k.obj.position.set(k.start.x + k.dir.x * 3 * (1 - e), k.start.y + 0.15 * (1 - e), k.start.z + k.dir.z * 3 * (1 - e));
+                  k.obj.rotation.x = -Math.PI / 2 * (1 - e);
+                });
+                if (tr > 8.7 && !st.knockReleased) {
+                  st.knockReleased = true;
+                  installer.disabled = false;
+                  walkers.forEach(w => { w.knocked = false; });
+                  knocked.length = 0;
+                }
+                evac.forEach(e => { if (tr > e.back) e.obj.visible = true; });
+
+                if (tr >= RESTORE_SECONDS) {
+                  st.phase = 'idle';
+                  st.t = 0;
+                  failureSim.mode = 'normal';
+                  failureSim.waveR = 0;
+                  failureSim.active = false;
+                  failureSim.exploded = false;
+                  failureSim.elapsed = 0;
+                  trafoGroup.scale.set(1, 1, 1);
+                  wreck.visible = false;
+                  fires.forEach(f => { f.group.visible = false; });
+                  collapses.forEach(c => {
+                    c.started = false;
+                    c.ruin.visible = false;
+                    const g = plantParts[c.def.key];
+                    if (g) {
+                      g.visible = true;
+                      g.scale.set(1, 1, 1);
+                      g.position.set(0, 0, 0);
+                    }
+                  });
+                  evac.forEach(e => { e.obj.visible = true; });
+                  particleSystemsRef.current.forEach(p => { p.visible = true; });
+                  ui(true);
+                } else ui(false);
               }
               shake.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(st.shake);
             },
             late: (time) => {
-              if (st.phase === 'idle') return;
+              if (st.phase === 'idle' || !failureSim.active) return;
               const blink = Math.floor(time * 4) % 2 === 0;
               ['tm', 'bm', 'gmp', 'dm1', 'dm2'].forEach(key => {
                 const node = moduleNodes[key];
-                if (node && node.led) node.led.material.color.set(st.phase === 'exploded' ? '#1a1a1a' : (blink ? '#ff2a2a' : '#5a0000'));
+                if (node && node.led) node.led.material.color.set(st.phase === 'countdown' ? (blink ? '#ff2a2a' : '#5a0000') : '#1a1a1a');
               });
-              if (treetechLed.mesh) treetechLed.mesh.material.color.set(blink ? '#ff2a2a' : '#5a0000');
+              if (treetechLed.mesh) treetechLed.mesh.material.color.set(st.phase === 'countdown' ? (blink ? '#ff2a2a' : '#5a0000') : '#1a1a1a');
             }
           };
         })();
 
         sceneApiRef.current.startFailure = failureCtl.start;
-        sceneApiRef.current.resetFailure = failureCtl.reset;
-        sceneApiRef.current.setMuted = failureCtl.setMuted;
+        sceneApiRef.current.resetFailure = failureCtl.restore;
 
         // LOOP DE ANIMAÇÃO 3D
         let animationFrameId;
@@ -7037,19 +7329,29 @@
           });
 
           // Cidade: pulsos, cabos e janelas seguem o estado do disjuntor
-          const cityOn = breakerClosedRef.current && !failureSim.blackout;
+          const breakerOn = breakerClosedRef.current;
           cityPulses.forEach(p => {
-            p.visible = cityOn;
-            if (cityOn) {
+            const lit = breakerOn && failureSim.lit(p.position.x + cityWorld.position.x, p.position.z + cityWorld.position.z);
+            p.visible = lit;
+            if (lit) {
               p.userData.progress = (p.userData.progress + p.userData.speed) % 1;
               p.position.copy(p.userData.curve.getPoint(p.userData.progress));
             }
           });
           cityWires.forEach(w => {
-            w.mesh.material.color.setHex(cityOn ? w.baseColor : 0x64748b);
-            w.mesh.material.emissive.setHex(cityOn ? w.baseColor : 0x000000);
+            if (!w.center) {
+              w.mesh.geometry.computeBoundingBox();
+              w.center = w.mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+            }
+            const lit = breakerOn && failureSim.lit(w.center.x + cityWorld.position.x, w.center.z + cityWorld.position.z);
+            w.mesh.material.color.setHex(lit ? w.baseColor : 0x64748b);
+            w.mesh.material.emissive.setHex(lit ? w.baseColor : 0x000000);
           });
-          cityWindows.forEach(win => win.material.color.setHex(cityOn ? 0xf3e6a8 : (win.userData.dayColor || 0x334155)));
+          cityWindows.forEach(win => {
+            if (!win.userData.wp) win.userData.wp = win.getWorldPosition(new THREE.Vector3());
+            const lit = breakerOn && failureSim.lit(win.userData.wp.x, win.userData.wp.z);
+            win.material.color.setHex(lit ? 0xf3e6a8 : (win.userData.dayColor || 0x334155));
+          });
 
           // Pessoas caminhando: posição pela distância percorrida, passos sincronizados com ela
           walkers.forEach(w => {
@@ -7215,7 +7517,7 @@
             <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-2 shadow-2xl">
               {failure.phase === 'idle' && (
                 <button
-                  onClick={() => { setCameraPreset('iso'); sceneApiRef.current.startFailure(); }}
+                  onClick={() => { prevViewMode.current = viewMode === 'dusk' ? null : viewMode; setViewMode('dusk'); setCameraPreset('iso'); sceneApiRef.current.startFailure(); }}
                   className="px-3 py-2 rounded-lg font-bold text-xs bg-red-700 hover:bg-red-600 text-white shadow-lg shadow-red-900/50 border border-red-400/60"
                 >
                   ⚠ FALHA
@@ -7234,13 +7536,9 @@
                   ↺ RESTAURAR SISTEMA
                 </button>
               )}
-              {failure.phase !== 'idle' && (
-                <button
-                  onClick={() => sceneApiRef.current.setMuted(!failure.muted)}
-                  className="px-2 py-2 rounded-lg text-xs bg-slate-800 border border-slate-600 text-slate-200"
-                  title="Som"
-                >
-                  {failure.muted ? '🔇' : '🔊'}
+              {failure.phase === 'restoring' && (
+                <button disabled className="px-3 py-2 rounded-lg font-bold text-xs bg-emerald-900 text-emerald-200 border border-emerald-500 animate-pulse">
+                  ↺ RESTAURANDO… {failure.remaining}%
                 </button>
               )}
               <button
