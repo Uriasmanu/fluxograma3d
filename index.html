@@ -6559,7 +6559,7 @@
         // CENÁRIO DE FALHA: alarmes, fumaça, explosão do transformador, destruição da usina, apagão e restauração gradual
         const failureCtl = (() => {
           const FAIL_SECONDS = 20;
-          const RESTORE_SECONDS = 13;
+          const RESTORE_SECONDS = 19;
           const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
           const rnd = (a, b) => a + Math.random() * (b - a);
           const ss = (a, b, x) => {
@@ -6581,6 +6581,12 @@
           const shake = V3(0, 0, 0);
           const AERIAL_POS = V3(54, 104, -4);
           const AERIAL_TARGET = V3(54, 0, -18.5);
+          const RESTORE_SHOTS = [
+            { until: 3, pos: V3(12, 9, 13), tgt: V3(0, 1.5, 0) },
+            { until: 6.5, pos: V3(7.5, 5.2, 8.5), tgt: V3(0, 2.2, 0) },
+            { until: 11, pos: V3(37, 17, 20), tgt: V3(18.5, 2.5, 2.5) },
+            { until: 999, pos: AERIAL_POS, tgt: AERIAL_TARGET }
+          ];
 
           // ---------- partículas ----------
           const makePool = (n, geo, matFactory) => Array.from({ length: n }, () => {
@@ -6840,8 +6846,8 @@
             knocked.push({ obj, start: obj.position.clone(), dir: away, t: 0, flag: ownerFlag });
           };
           const evac = [];
-          plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(2, FAIL_SECONDS - 4), back: rnd(5, 11) }));
-          if (plantOfficeWalker.group) evac.push({ obj: plantOfficeWalker.group, at: rnd(2, FAIL_SECONDS - 4), back: rnd(5, 11) });
+          plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(2, FAIL_SECONDS - 4), back: rnd(8, 16) }));
+          if (plantOfficeWalker.group) evac.push({ obj: plantOfficeWalker.group, at: rnd(2, FAIL_SECONDS - 4), back: rnd(8, 16) });
 
           // ---------- vans: deixam de ir até a subestação depois da explosão ----------
           const vanPathOriginal = vans.length ? vans[0].path : null;
@@ -7163,6 +7169,12 @@
                 dome.visible = false;
                 rerouteVans(time, false);
 
+                // câmera acompanha o que está sendo reconstruído
+                const shot = RESTORE_SHOTS.find(sh => tr < sh.until);
+                const camK = 1 - Math.exp(-dt * 2.4);
+                controls.object.position.lerp(shot.pos, camK);
+                controls.target.lerp(shot.tgt, camK);
+
                 // 1. fogo e fumaça diminuem, destroços somem
                 const calm = 1 - ss(0, 3, tr);
                 fires.forEach(f => { f.amount = calm; if (calm <= 0.01) f.group.visible = false; });
@@ -7183,7 +7195,7 @@
 
                 // 2. prédios se reerguem
                 collapses.forEach((c, i) => {
-                  const tb = tr - 2.5 - i * 0.5;
+                  const tb = tr - 6.5 - i * 0.5;
                   if (tb <= 0) return;
                   const g = plantParts[c.def.key];
                   const e = ss(0, 3.6, tb);
@@ -7198,7 +7210,7 @@
                 });
 
                 // 3. transformador reconstruído
-                const tt = tr - 3.2;
+                const tt = tr - 3.0;
                 if (tt > 0) {
                   wreck.scale.y = Math.max(0.001, 1 - ss(0, 2.2, tt));
                   if (wreck.scale.y <= 0.01) wreck.visible = false;
@@ -7217,13 +7229,13 @@
                 }
 
                 // 4. a energia volta em uma onda a partir da subestação
-                if (tr >= 4.5) {
-                  failureSim.waveR = (tr - 4.5) * 11;
-                  if (tr > 5) particleSystemsRef.current.forEach(p => { p.visible = true; });
+                if (tr >= 11) {
+                  failureSim.waveR = (tr - 11) * 11;
+                  if (tr > 11.5) particleSystemsRef.current.forEach(p => { p.visible = true; });
                 }
 
                 // 5. telas e alarmes voltam ao normal
-                if (tr > 3 && !st.screensBack) {
+                if (tr > 7 && !st.screensBack) {
                   st.screensBack = true;
                   failureSim.active = false;
                   failureSim.exploded = false;
@@ -7241,11 +7253,11 @@
 
                 // 6. técnico e vigias se levantam e voltam ao trabalho; funcionários voltam
                 knocked.forEach(k => {
-                  const e = ss(7, 8.6, tr);
+                  const e = ss(14, 15.6, tr);
                   k.obj.position.set(k.start.x + k.dir.x * 3 * (1 - e), k.start.y + 0.15 * (1 - e), k.start.z + k.dir.z * 3 * (1 - e));
                   k.obj.rotation.x = -Math.PI / 2 * (1 - e);
                 });
-                if (tr > 8.7 && !st.knockReleased) {
+                if (tr > 15.8 && !st.knockReleased) {
                   st.knockReleased = true;
                   installer.disabled = false;
                   walkers.forEach(w => { w.knocked = false; });
