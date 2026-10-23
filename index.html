@@ -6943,6 +6943,30 @@
               setAlarms(prev => [{ id: Date.now(), msg: 'FALHA CRÍTICA: Trafo 01 em sobretemperatura. Explosão iminente!', time: new Date().toLocaleTimeString() }, ...prev]);
               ui(true);
             },
+            abort: () => {
+              if (st.phase !== 'countdown') return;
+              st.phase = 'aborting';
+              st.ta = 0;
+              st.heat = matTrafo.emissiveIntensity;
+              failureSim.active = false;
+              failureSim.elapsed = 0;
+              beacons.forEach(b => { b.g.visible = false; });
+              arcs.forEach(a => { a.line.visible = false; });
+              alarmLight.intensity = 0;
+              vignette.style.opacity = '0';
+              evac.forEach(e => { e.obj.visible = true; });
+              try {
+                const mq = failureSim.mqTexture;
+                if (mq && st.mqSnap) {
+                  mq.image.getContext('2d').putImageData(st.mqSnap, 0, 0);
+                  mq.needsUpdate = true;
+                }
+              } catch (e) {
+                // sem restauração da tela
+              }
+              setAlarms(prev => [{ id: Date.now(), msg: 'SISTEMA: Falha desativada. Trafo 01 estabilizado.', time: new Date().toLocaleTimeString() }, ...prev]);
+              ui(true);
+            },
             restore: () => {
               if (st.phase !== 'exploded') return;
               st.phase = 'restoring';
@@ -6976,7 +7000,31 @@
                 return;
               }
 
-              if (st.phase === 'countdown') {
+              if (st.phase === 'aborting') {
+                st.ta += dt;
+                const k = 1 - ss(0, 3, st.ta);
+                matTrafo.emissiveIntensity = st.heat * k;
+                matRadiator.emissiveIntensity = st.heat * 0.8 * k;
+                trafoGroup.position.x *= 0.9;
+                trafoGroup.scale.lerp(V3(1, 1, 1), 0.1);
+                st.shake = 0;
+                st.smoke += dt * 14 * k;
+                while (st.smoke >= 1) {
+                  st.smoke -= 1;
+                  emit(smokePool, rnd(-1.2, 1.2), rnd(2.6, 3.8), rnd(-0.8, 0.6), rnd(0.2, 1.0), rnd(1.2, 2.2), rnd(-0.3, 0.3), rnd(2.5, 3.5), rnd(0.3, 0.5), rnd(1.2, 2), 0.35);
+                }
+                if (st.ta >= 3) {
+                  st.phase = 'idle';
+                  st.t = 0;
+                  matTrafo.emissive.setHex(0x000000);
+                  matTrafo.emissiveIntensity = 0;
+                  matRadiator.emissive.setHex(0x000000);
+                  matRadiator.emissiveIntensity = 0;
+                  trafoGroup.position.x = 0;
+                  trafoGroup.scale.set(1, 1, 1);
+                  ui(true);
+                } else ui(false);
+              } else if (st.phase === 'countdown') {
                 st.t += dt;
                 failureSim.elapsed = st.t * (60 / FAIL_SECONDS);
                 const p = Math.min(1, st.t / FAIL_SECONDS);
@@ -7247,6 +7295,7 @@
 
         sceneApiRef.current.startFailure = failureCtl.start;
         sceneApiRef.current.resetFailure = failureCtl.restore;
+        sceneApiRef.current.abortFailure = failureCtl.abort;
 
         // LOOP DE ANIMAÇÃO 3D
         let animationFrameId;
@@ -7524,8 +7573,16 @@
                 </button>
               )}
               {failure.phase === 'countdown' && (
-                <button disabled className="px-3 py-2 rounded-lg font-bold text-xs bg-red-900 text-red-200 border border-red-500 animate-pulse">
-                  ⚠ FALHA EM CURSO · {failure.remaining}s
+                <button
+                  onClick={() => sceneApiRef.current.abortFailure()}
+                  className="px-3 py-2 rounded-lg font-bold text-xs bg-amber-500 hover:bg-amber-400 text-slate-900 border border-amber-200 shadow-lg shadow-amber-900/40"
+                >
+                  ■ DESATIVAR FALHA · {failure.remaining}s
+                </button>
+              )}
+              {failure.phase === 'aborting' && (
+                <button disabled className="px-3 py-2 rounded-lg font-bold text-xs bg-amber-900 text-amber-200 border border-amber-500 animate-pulse">
+                  ■ DESATIVANDO…
                 </button>
               )}
               {failure.phase === 'exploded' && (
