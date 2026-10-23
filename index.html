@@ -166,6 +166,9 @@
       const [breakerClosed, setBreakerClosed] = useState(true);
       const [loadLevel] = useState(78); // %
       const [alarms, setAlarms] = useState([]);
+      const [failure, setFailure] = useState({ phase: 'idle', remaining: 60, alerts: [], muted: false });
+      const failureUiRef = useRef(null);
+      failureUiRef.current = setFailure;
       const [tourStep, setTourStep] = useState(null);
 
       const sceneRef = useRef(null);
@@ -831,6 +834,49 @@
 
         // 9b. EQUIPE DE SOFTWARE DA TREETECH: pessoas detalhadas, telas animadas e cantinhos de café
         const officeLife = { update: null, obstacles: [], persons: [], coffee: [], tickers: [], debug: {} };
+        const failureSim = {
+          active: false, exploded: false, blackout: false, elapsed: 0, mqTexture: null,
+          paintAlert: (ctx, w, h, time) => {
+            const u = h / 200;
+            const dead = failureSim.exploded;
+            const on = Math.floor(time * 2.5) % 2 === 0;
+            ctx.fillStyle = dead ? (on ? '#2a0a0a' : '#0a0505') : (on ? '#a80c0c' : '#2a0606');
+            ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = dead ? '#3a1010' : (on ? '#ffd23f' : '#5a0000');
+            for (let x = -h; x < w + h; x += 30 * u) {
+              [0, h - 12 * u].forEach(y => {
+                ctx.beginPath();
+                ctx.moveTo(x, y + 12 * u);
+                ctx.lineTo(x + 14 * u, y);
+                ctx.lineTo(x + 28 * u, y);
+                ctx.lineTo(x + 14 * u, y + 12 * u);
+                ctx.fill();
+              });
+            }
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = dead ? '#6a3a3a' : '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(w / 2, 22 * u);
+            ctx.lineTo(w / 2 + 34 * u, 82 * u);
+            ctx.lineTo(w / 2 - 34 * u, 82 * u);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = dead ? '#0a0505' : '#a80c0c';
+            ctx.font = 'bold ' + 40 * u + 'px Arial, sans-serif';
+            ctx.fillText('!', w / 2, 62 * u);
+            ctx.fillStyle = dead ? '#9a6a6a' : '#ffffff';
+            ctx.font = 'bold ' + 22 * u + 'px Arial, sans-serif';
+            ctx.fillText(dead ? 'SEM SINAL' : 'ALARME CRÍTICO', w / 2, 102 * u);
+            ctx.font = 'bold ' + 12 * u + 'px Arial, sans-serif';
+            const el = failureSim.elapsed;
+            const lines = dead
+              ? ['TRAFO 01 FORA DE OPERAÇÃO', 'COMUNICAÇÃO PERDIDA COM OS MÓDULOS']
+              : ['TRAFO 01 · SOBRETEMPERATURA ' + Math.min(140, Math.round(78 + el * 1.1)) + ' ºC', 'GMP: H2 ' + Math.round(300 + el * 70) + ' ppm · BM: DESCARGA PARCIAL'];
+            ctx.fillText(lines[0], w / 2, 128 * u);
+            ctx.fillText(lines[1], w / 2, 146 * u);
+          }
+        };
         const lifeKit = (() => {
           const GREEN = '#2f9e5e';
           const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -1887,7 +1933,13 @@
             if (time - lastDraw > 0.16) {
               lastDraw = time;
               screens.forEach(sc => {
-                sc.paint(sc.ctx, time, sc.seed);
+                if (sc.home) {
+                  if (failureSim.blackout) {
+                    sc.ctx.fillStyle = '#05080a';
+                    sc.ctx.fillRect(0, 0, 320, 200);
+                  } else sc.paint(sc.ctx, time, sc.seed);
+                } else if (failureSim.active) failureSim.paintAlert(sc.ctx, 320, 200, time);
+                else sc.paint(sc.ctx, time, sc.seed);
                 sc.texture.needsUpdate = true;
               });
             }
@@ -1896,10 +1948,20 @@
         };
 
         // 9c. VIDA NAS CASAS DA CIDADE: pessoinhas usando energia elétrica dentro e fora das casas
-        const homeLife = { tickers: [], obstacles: [], persons: [], update: null };
+        const homeLife = { tickers: [], obstacles: [], persons: [], actors: [], lights: [], update: null, power: true, hooks: [] };
         const homeKit = (() => {
           const { GREEN, V, stdMat, box, addMesh, ss, win, lerpAngle, canvasOf, screenPainters, makeScreen, createPerson, makeState } = lifeKit;
           const SC = 0.62;
+          const makeHomeScreen = (kind, seed) => {
+            const sc = makeScreen(kind, seed);
+            sc.home = true;
+            return sc;
+          };
+          const lightMat = (hex, offHex = 0x2a2f36) => {
+            const mat = new THREE.MeshBasicMaterial({ color: hex });
+            homeLife.lights.push({ mat, on: hex, off: offHex });
+            return mat;
+          };
 
           screenPainters.tv = (ctx, time, seed) => {
             const scene = Math.floor(time / 4 + seed * 7) % 3;
@@ -2074,6 +2136,7 @@
             homeLife.persons.push({ root, plot: ctx.idx, kind: ctx.kind });
             const s = makeState();
             s.mugVisible = false;
+            homeLife.actors.push({ person, s, root });
             return {
               person, root, s,
               toLocal: (px, py, pz, out) => {
@@ -2186,7 +2249,7 @@
             const game = o.game;
             blk('movel-tv', 0.3, 0.16, 0.8, -1.5, F + 0.08, 0, woodMat);
             blk('tv', 0.07, 0.42, 0.78, -1.53, F + 0.16 + 0.21, 0, darkMat);
-            const screen = makeScreen(game ? 'game' : 'tv', o.seed);
+            const screen = makeHomeScreen(game ? 'game' : 'tv', o.seed);
             screenQuad(parent, screen, 0.72, 0.38, -1.49, F + 0.37, 0, Math.PI / 2);
             if (game) blk('console', 0.16, 0.04, 0.22, -1.48, F + 0.18, 0.5, darkMat, false);
             blk('sofa-assento', 0.5, 0.2, 1.1, 1.18, F + 0.1, 0, fabricMats[o.n % 4], false);
@@ -2199,7 +2262,7 @@
             ctx.blk('tapete', 1.6, 0.01, 1.2, 0.3, F + 0.005, 0, rugMat, false);
             ctx.cyl('abajur-haste', 0.015, 1.0, 1.5, F + 0.5, -1.2, metalMat, false, 6);
             const shade = ctx.cyl('abajur', 0.12, 0.18, 1.5, F + 1.05, -1.2, stdMat('#f3e6a8', 0.5), false);
-            shade.material = new THREE.MeshBasicMaterial({ color: 0xf3e6a8 });
+            shade.material = lightMat(0xf3e6a8);
             ctx.obs('abajur', 1.5, F + 0.5, -1.2, 0.26, 1.1, 0.26);
             const remote = addMesh(parent, box(0.15, 0.02, 0.05), darkMat, 0, 0, 0);
 
@@ -2366,7 +2429,7 @@
             [-0.45, 0.45].forEach(z => blk('mesa-lado', 0.5, 0.43, 0.04, -1.43, F + 0.215, z, woodMat));
             blk('monitor', 0.04, 0.26, 0.42, -1.55, F + 0.62, 0, darkMat);
             blk('monitor-pe', 0.1, 0.06, 0.16, -1.52, F + 0.5, 0, darkMat);
-            const screen = makeScreen(o.screen || 'code', o.seed);
+            const screen = makeHomeScreen(o.screen || 'code', o.seed);
             screenQuad(parent, screen, 0.39, 0.23, -1.527, F + 0.62, 0, Math.PI / 2);
             blk('teclado', 0.1, 0.012, 0.3, -1.28, F + 0.476, 0, darkMat);
             blk('mouse', 0.04, 0.02, 0.03, -1.26, F + 0.48, -0.2, darkMat);
@@ -2378,7 +2441,7 @@
             [0.3, 0.7, 1.1].forEach(y => blk('livros', 0.26, 0.12, 0.5, 1.48, F + y, -0.7, stdMat('#8a5b5b', 0.8), false));
             blk('impressora', 0.22, 0.14, 0.26, 1.5, F + 0.07, 0.4, whiteMat);
             const lampBase = ctx.cyl('luminaria', 0.015, 0.18, -1.4, F + 0.56, -0.38, metalMat, false, 6);
-            const bulb = addMesh(parent, new THREE.SphereGeometry(0.04, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff1c0 }), -1.4, F + 0.68, -0.38, false);
+            const bulb = addMesh(parent, new THREE.SphereGeometry(0.04, 8, 6), lightMat(0xfff1c0), -1.4, F + 0.68, -0.38, false);
 
             const actor = makeActor(ctx, o.n, -0.95, F, 0, -Math.PI / 2);
             const s = actor.s;
@@ -2465,7 +2528,7 @@
             addMesh(parent, box(0.02, 0.06, 0.05), whiteMat, -1.675, F + 0.3, 0.9, false);
             const cable = makeCable(parent, '#2b323a');
             const outletW = V(-1.66, F + 0.3, 0.9);
-            const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
+            const lampMat = lightMat(0xffe9a8);
             addMesh(parent, new THREE.SphereGeometry(0.03, 6, 6), lampMat, -0.4, F + 0.5, 0.62, false);
 
             const actor = makeActor(ctx, o.n, -0.02, F, 0.1, -Math.PI / 2);
@@ -2522,13 +2585,13 @@
             addMesh(parent, box(1.0, 0.03, 0.6), stdMat('#5b8fc0', 0.9), 0.55, F + 0.295, -0.55, false);
             blk('criado-mudo', 0.28, 0.28, 0.28, -0.25, F + 0.14, -1.3, woodMat);
             ctx.cyl('abajur-base', 0.04, 0.04, -0.25, F + 0.3, -1.3, metalMat, false, 8);
-            const shade = addMesh(parent, new THREE.CylinderGeometry(0.07, 0.1, 0.12, 10), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }), -0.25, F + 0.38, -1.3, false);
+            const shade = addMesh(parent, new THREE.CylinderGeometry(0.07, 0.1, 0.12, 10), lightMat(0xffe9a8), -0.25, F + 0.38, -1.3, false);
             ctx.obs('abajur', -0.25, F + 0.4, -1.3, 0.2, 0.2, 0.2);
             addMesh(parent, box(0.02, 0.06, 0.05), whiteMat, -0.4, F + 0.3, -1.475, false);
             blk('guarda-roupa', 0.5, 1.4, 0.6, -1.4, F + 0.7, -1.1, woodMat);
             const tablet = new THREE.Group();
             addMesh(tablet, box(0.1, 0.007, 0.14), darkMat, 0, 0, 0);
-            const tabScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.125), new THREE.MeshBasicMaterial({ color: 0x9fd0e8 }));
+            const tabScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.125), lightMat(0x9fd0e8, 0x10161c));
             tabScreen.rotation.x = -Math.PI / 2;
             tabScreen.position.y = 0.0045;
             tablet.add(tabScreen);
@@ -2996,7 +3059,7 @@
             blk('cadeira-assento', 0.28, 0.03, 0.28, 0.5, Y + 0.17, 2.55, woodMat);
             blk('cadeira-encosto', 0.03, 0.28, 0.28, 0.36, Y + 0.31, 2.55, woodMat);
             ctx.cyl('cadeira-pernas', 0.1, 0.16, 0.5, Y + 0.08, 2.55, woodMat, false, 6);
-            const screen = makeScreen('doc', o.seed);
+            const screen = makeHomeScreen('doc', o.seed);
             const lap = new THREE.Group();
             addMesh(lap, box(0.22, 0.012, 0.16), darkMat, 0, 0, 0);
             const lid = new THREE.Group();
@@ -3016,7 +3079,7 @@
             addMesh(parent, box(0.02, 0.06, 0.05), whiteMat, 1.4, Y + 0.45, 1.64, false);
             const cableA = makeCable(parent, '#2b323a', 0.011, 10);
             const cableB = makeCable(parent, '#e8ecef', 0.009, 8);
-            const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff1c0 });
+            const lampMat = lightMat(0xfff1c0);
             const lamp = addMesh(parent, new THREE.SphereGeometry(0.05, 8, 6), lampMat, 1.35, Y + 0.45, 2.4, false);
             ctx.cyl('luz-haste', 0.008, 0.2, 1.35, Y + 0.38, 2.4, metalMat, false, 6);
             blk('cadeira2', 0.001, 0.001, 0.001, 0, 0, 0, darkMat, false).visible = false;
@@ -3214,6 +3277,10 @@
             addMesh(parent, box(0.02, 0.06, 0.05), whiteMat, 1.2, Y + 0.45, 1.64, false);
             const cable = makeCable(parent, '#2b323a', 0.011, 10);
             const chLed = addMesh(parent, new THREE.SphereGeometry(0.014, 6, 6), new THREE.MeshBasicMaterial({ color: 0x6fdf8a }), 1.2, Y + 0.11, 2.4, false);
+            homeLife.hooks.push(() => {
+              drone.position.y = Math.max(Y + 0.04, drone.position.y - 0.05);
+              drone.rotation.x += 0.03;
+            });
             const actor = makeActor(ctx, o.n, 0.0, Y, 2.4, 0);
             const s = actor.s;
             const ctl = V(0, 0, 0);
@@ -3334,8 +3401,23 @@
           indoor.game = indoor.tv;
           return { buildHome, indoor };
         })();
+        homeLife.setPower = (on) => {
+          homeLife.power = on;
+          homeLife.lights.forEach(l => l.mat.color.setHex(on ? l.on : l.off));
+        };
         homeLife.update = (time) => {
-          homeLife.tickers.forEach(tick => tick(time));
+          if (homeLife.power) {
+            homeLife.tickers.forEach(tick => tick(time));
+            return;
+          }
+          homeLife.hooks.forEach(hook => hook(time));
+          homeLife.actors.forEach((a, i) => {
+            a.s.headY = Math.sin(time * 0.9 + i) * 0.6;
+            a.s.headX = -0.05 + Math.sin(time * 0.5 + i * 2) * 0.12;
+            a.s.smile = 0;
+            a.s.talk = 0;
+            a.person.apply(a.s);
+          });
         };
 
         // 10. CIDADE E TORRES DE TRANSMISSÃO AO LADO DA SUBESTAÇÃO
@@ -3704,6 +3786,7 @@
         scene.add(plantWorld);
 
         const plantFans = [];
+        const plantParts = {};
         const plantSteam = [];
         const plantSeated = [];
         const plantOfficeWalker = { group: null, path: null };
@@ -3827,6 +3910,7 @@
           mainBuildingGroup.add(createChimney(-4.0, -4.0, 5.2, 0.75, 0.55, [1.5, 0.6]));
           mainBuildingGroup.add(createChimney(-2.4, -4.2, 4.2, 0.60, 0.45, [1.2, 0.4]));
           plantWorld.add(mainBuildingGroup);
+          plantParts.main = mainBuildingGroup;
 
           // 3. Prédio intermediário com ventoinhas no teto
           const midBuildingGroup = new THREE.Group();
@@ -3879,6 +3963,7 @@
             midBuildingGroup.add(createRoofFan(fx, fz, 0.95));
           });
           plantWorld.add(midBuildingGroup);
+          plantParts.mid = midBuildingGroup;
 
           // 4. Prédio laranja frontal, baixo, com chaminés listradas
           const frontBuildingGroup = new THREE.Group();
@@ -3953,6 +4038,7 @@
           ductMesh.castShadow = true;
           frontBuildingGroup.add(ductMesh);
           plantWorld.add(frontBuildingGroup);
+          plantParts.office = frontBuildingGroup;
 
           // Interior do escritório: 3 mesas com PC, 3 pessoas sentadas e 1 pessoa andando
           const officeFurniture = new THREE.Group();
@@ -4114,7 +4200,8 @@
           });
 
           // Tela do servidor e etiqueta da torre
-          const screenTexture = labelTexture(512, 320, (ctx, w, h) => {
+          let screenTexture;
+          screenTexture = labelTexture(512, 320, (ctx, w, h) => {
             ctx.fillStyle = '#1f2933';
             ctx.fillRect(0, 0, w, h);
             ctx.fillStyle = '#d9783a';
@@ -4131,6 +4218,7 @@
             ctx.fillStyle = '#6fbf8a';
             ctx.fillText('● online', 30, 270);
           });
+          failureSim.mqTexture = screenTexture;
 
           const towerLabelTexture = labelTexture(256, 96, (ctx, w, h) => {
             ctx.fillStyle = '#e8ecef';
@@ -4424,6 +4512,10 @@
 
           const rig = new THREE.Group();
           substationGroup.add(rig);
+          const propsGroup = new THREE.Group();
+          scene.add(propsGroup);
+          installer.rig = rig;
+          installer.props = propsGroup;
           const upper = new THREE.Group();
           rig.add(upper);
 
@@ -4542,7 +4634,7 @@
             const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), new THREE.MeshBasicMaterial({ color: '#4aa8ff' }));
             lamp.position.set(x, y, z);
             lamp.visible = false;
-            scene.add(lamp);
+            propsGroup.add(lamp);
             return lamp;
           };
 
@@ -4550,14 +4642,14 @@
           addMesh(toolbox, box(0.5, 0.2, 0.28), orangeMat, 0, 0.1, 0);
           addMesh(toolbox, box(0.2, 0.03, 0.04), darkMat, 0, 0.22, 0);
           toolbox.position.set(2.9, 0.35, 1.0);
-          scene.add(toolbox);
+          propsGroup.add(toolbox);
           aabb('caixa-ferramentas', 2.9, 0.47, 1.0, 0.5, 0.24, 0.28);
-          const drum = addMesh(scene, new THREE.CylinderGeometry(0.24, 0.24, 0.22, 14), stdMat('#c9b89a', 0.7), 4.3, 0.6, -1.0);
+          const drum = addMesh(propsGroup, new THREE.CylinderGeometry(0.24, 0.24, 0.22, 14), stdMat('#c9b89a', 0.7), 4.3, 0.6, -1.0);
           drum.rotation.x = Math.PI / 2;
           addMesh(drum, new THREE.CylinderGeometry(0.1, 0.1, 0.26, 10), darkMat, 0, 0, 0);
           aabb('carretel', 4.3, 0.6, -1.0, 0.48, 0.48, 0.26);
           [[2.15, 1.1], [3.2, 1.35], [4.3, 0.1], [2.9, -2.3]].forEach(([cx, cz]) => {
-            const cone = addMesh(scene, new THREE.ConeGeometry(0.1, 0.3, 10), stdMat('#ff7a1a', 0.5), cx, 0.5, cz);
+            const cone = addMesh(propsGroup, new THREE.ConeGeometry(0.1, 0.3, 10), stdMat('#ff7a1a', 0.5), cx, 0.5, cz);
             addMesh(cone, new THREE.CylinderGeometry(0.075, 0.085, 0.05, 10), stripeMat, 0, 0.02, 0);
             aabb('cone', cx, 0.5, cz, 0.2, 0.3, 0.2);
           });
@@ -4572,31 +4664,31 @@
             const lamp = makeIndicator(cfg.face.x + 0.012, cfg.face.y + 0.15 * k, cfg.face.z - 0.2 * k);
 
             [[0.1, 0.15], [0.22, 0.15], [0.1, 0.02], [0.22, 0.02]].forEach(([mz, my]) => {
-              const screw = addMesh(scene, new THREE.CylinderGeometry(0.02, 0.02, 0.012, 8), metalMat2, cfg.face.x + 0.006, cfg.face.y + my * k, cfg.face.z + mz * k);
+              const screw = addMesh(propsGroup, new THREE.CylinderGeometry(0.02, 0.02, 0.012, 8), metalMat2, cfg.face.x + 0.006, cfg.face.y + my * k, cfg.face.z + mz * k);
               screw.rotation.z = Math.PI / 2;
               screw.castShadow = false;
             });
             const plugPos = V(cfg.face.x, cfg.face.y - 0.05 * k, cfg.face.z + 0.12 * k);
-            const port = addMesh(scene, new THREE.CylinderGeometry(0.04, 0.04, 0.012, 10), darkMat, plugPos.x + 0.006, plugPos.y, plugPos.z);
+            const port = addMesh(propsGroup, new THREE.CylinderGeometry(0.04, 0.04, 0.012, 10), darkMat, plugPos.x + 0.006, plugPos.y, plugPos.z);
             port.rotation.z = Math.PI / 2;
-            const plug = addMesh(scene, new THREE.CylinderGeometry(0.028, 0.028, 0.09, 10), stdMat('#3a4048', 0.5), plugPos.x + 0.05, plugPos.y, plugPos.z);
+            const plug = addMesh(propsGroup, new THREE.CylinderGeometry(0.028, 0.028, 0.09, 10), stdMat('#3a4048', 0.5), plugPos.x + 0.05, plugPos.y, plugPos.z);
             plug.rotation.z = Math.PI / 2;
-            const plugRing = addMesh(scene, new THREE.CylinderGeometry(0.034, 0.034, 0.02, 10), orangeMat, plugPos.x + 0.07, plugPos.y, plugPos.z);
+            const plugRing = addMesh(propsGroup, new THREE.CylinderGeometry(0.034, 0.034, 0.02, 10), orangeMat, plugPos.x + 0.07, plugPos.y, plugPos.z);
             plugRing.rotation.z = Math.PI / 2;
 
             const curve = new THREE.CatmullRomCurve3(cfg.cable.map(p => V(...p)));
             const cableMesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 28, 0.014, 6), stdMat('#23282e', 0.6));
             cableMesh.castShadow = true;
-            scene.add(cableMesh);
+            propsGroup.add(cableMesh);
             installer.cables.push(curve.getPoints(60).slice(12));
             const jb = cfg.box;
-            addMesh(scene, box(0.3, 0.2, 0.2), stdMat('#7a8793', 0.5), jb[0], jb[1], jb[2]);
+            addMesh(propsGroup, box(0.3, 0.2, 0.2), stdMat('#7a8793', 0.5), jb[0], jb[1], jb[2]);
             aabb('caixa-juncao', jb[0], jb[1], jb[2], 0.3, 0.2, 0.2);
 
             const puffs = [0, 1, 2, 3].map(() => {
               const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#d8d2c4', transparent: true, opacity: 0, depthWrite: false }));
               puff.visible = false;
-              scene.add(puff);
+              propsGroup.add(puff);
               return puff;
             });
             const screws = [[0.1, 0.15], [0.22, 0.15], [0.1, 0.02], [0.22, 0.02]];
@@ -4688,6 +4780,7 @@
 
           // Ciclo: trabalha no TM, anda até o GMP, trabalha, volta; em cada estação: fixa, conecta, configura, confere
           installer.update = (time) => {
+            if (installer.disabled) return;
             const m = time % CYCLE;
             const walking = (m >= WORK && m < WORK + WALK) || m >= 2 * WORK + WALK;
             const blink = time % 4.6 < 0.12 ? 0.1 : 1;
@@ -5694,6 +5787,11 @@
         const drawDashboard = () => {
           const { ctx, texture, width: W, height: H } = treetechDashboard;
           if (!ctx) return;
+          if (failureSim.active) {
+            failureSim.paintAlert(ctx, W, H, net.last);
+            texture.needsUpdate = true;
+            return;
+          }
           const tileW = W / 4;
           const tileH = H / 2;
           const orange = '#d9783a';
@@ -5854,7 +5952,7 @@
             if (net.history.saved.length > 60) net.history.saved.shift();
           }
           if (time >= net.nextDraw) {
-            net.nextDraw = time + 0.5;
+            net.nextDraw = time + (failureSim.active ? 0.2 : 0.5);
             drawDashboard();
           }
           if (time >= net.nextDbSwitch) {
@@ -5994,7 +6092,7 @@
         };
 
         const applyDuskLamps = () => {
-          const cityOn = breakerClosedRef.current;
+          const cityOn = breakerClosedRef.current && !failureSim.blackout;
           const d = duskState.level;
           duskGlows.forEach(glow => {
             const on = d > 0.01 && (!glow.city || cityOn);
@@ -6086,6 +6184,677 @@
         };
         window.addEventListener('resize', handleResize);
 
+        // CENÁRIO DE FALHA: alarmes, fumaça, explosão do transformador, destruição da usina e apagão da cidade
+        const failureCtl = (() => {
+          const FAIL_SECONDS = 60;
+          const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+          const rnd = (a, b) => a + Math.random() * (b - a);
+          const ss = (a, b, x) => {
+            const q = Math.min(1, Math.max(0, (x - a) / (b - a)));
+            return q * q * (3 - 2 * q);
+          };
+          const root = new THREE.Group();
+          scene.add(root);
+          const trafoGroup = componentMeshesRef.current['transformer'];
+          const ALERTS = [
+            'Temperatura do óleo acima de 95 ºC (TM)',
+            'Gases dissolvidos críticos no óleo (GMP)',
+            'Descarga parcial nas buchas AT (BM)',
+            'Proteção diferencial 87T atuada',
+            'Pressão do tanque acima do limite',
+            'Ventilação forçada esgotada: risco de explosão'
+          ];
+          const st = { phase: 'idle', t: 0, te: 0, last: 0, shake: 0, lastRem: -1, lastAlert: -1, mqNext: 0, mqSnap: null, spark: 0, smoke: 0, dust: 0, breakerDone: false, powerDone: false, siren: null };
+          const shake = V3(0, 0, 0);
+
+          // ---------- áudio ----------
+          const audio = { ctx: null, muted: false, osc: null, lfo: null, gain: null };
+          const ensureAudio = () => {
+            try {
+              if (!audio.ctx) audio.ctx = new (window.AudioContext || window.webkitAudioContext)();
+              if (audio.ctx.state === 'suspended') audio.ctx.resume();
+              return audio.ctx;
+            } catch (e) {
+              return null;
+            }
+          };
+          const startSiren = () => {
+            const ctx = audio.muted ? null : ensureAudio();
+            if (!ctx || audio.osc) return;
+            try {
+              audio.osc = ctx.createOscillator();
+              audio.lfo = ctx.createOscillator();
+              const depth = ctx.createGain();
+              audio.gain = ctx.createGain();
+              audio.osc.type = 'sawtooth';
+              audio.osc.frequency.value = 760;
+              audio.lfo.frequency.value = 0.9;
+              depth.gain.value = 190;
+              audio.gain.gain.value = 0.05;
+              audio.lfo.connect(depth);
+              depth.connect(audio.osc.frequency);
+              audio.osc.connect(audio.gain);
+              audio.gain.connect(ctx.destination);
+              audio.osc.start();
+              audio.lfo.start();
+            } catch (e) {
+              audio.osc = null;
+            }
+          };
+          const stopSiren = () => {
+            try {
+              if (audio.osc) {
+                audio.osc.stop();
+                audio.lfo.stop();
+              }
+            } catch (e) {
+              // já parado
+            }
+            audio.osc = null;
+            audio.lfo = null;
+          };
+          const boom = () => {
+            const ctx = audio.muted ? null : ensureAudio();
+            if (!ctx) return;
+            try {
+              const len = ctx.sampleRate * 3;
+              const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+              const data = buffer.getChannelData(0);
+              for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.7));
+              const noise = ctx.createBufferSource();
+              noise.buffer = buffer;
+              const filter = ctx.createBiquadFilter();
+              filter.type = 'lowpass';
+              filter.frequency.setValueAtTime(1400, ctx.currentTime);
+              filter.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 2.5);
+              const gain = ctx.createGain();
+              gain.gain.value = 0.9;
+              noise.connect(filter);
+              filter.connect(gain);
+              gain.connect(ctx.destination);
+              noise.start();
+              const sub = ctx.createOscillator();
+              const subGain = ctx.createGain();
+              sub.frequency.setValueAtTime(70, ctx.currentTime);
+              sub.frequency.exponentialRampToValueAtTime(28, ctx.currentTime + 1.6);
+              subGain.gain.setValueAtTime(0.8, ctx.currentTime);
+              subGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+              sub.connect(subGain);
+              subGain.connect(ctx.destination);
+              sub.start();
+              sub.stop(ctx.currentTime + 1.9);
+            } catch (e) {
+              // sem áudio
+            }
+          };
+
+          // ---------- partículas ----------
+          const makePool = (n, geo, matFactory) => Array.from({ length: n }, () => {
+            const mesh = new THREE.Mesh(geo, matFactory());
+            mesh.visible = false;
+            root.add(mesh);
+            return { mesh, life: 0, max: 1, vel: V3(0, 0, 0), grow: 0, op: 0, s0: 1 };
+          });
+          const sphereGeo = new THREE.SphereGeometry(1, 8, 6);
+          const smokePool = makePool(80, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#2a2a2a', transparent: true, opacity: 0, depthWrite: false }));
+          const dustPool = makePool(60, sphereGeo, () => new THREE.MeshBasicMaterial({ color: '#b9b2a6', transparent: true, opacity: 0, depthWrite: false }));
+          const sparkPool = makePool(70, new THREE.SphereGeometry(0.06, 5, 4), () => new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+          const emit = (pool, x, y, z, vx, vy, vz, life, s0, grow, op) => {
+            const p = pool.find(q => q.life <= 0);
+            if (!p) return null;
+            p.life = life;
+            p.max = life;
+            p.mesh.position.set(x, y, z);
+            p.vel.set(vx, vy, vz);
+            p.s0 = s0;
+            p.grow = grow;
+            p.op = op;
+            p.mesh.scale.setScalar(s0);
+            p.mesh.visible = true;
+            return p;
+          };
+          const stepPool = (pool, dt, gravity) => pool.forEach(p => {
+            if (p.life <= 0) return;
+            p.life -= dt;
+            if (p.life <= 0) {
+              p.mesh.visible = false;
+              return;
+            }
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.vel.y += gravity * dt;
+            const q = 1 - p.life / p.max;
+            p.mesh.scale.setScalar(p.s0 + p.grow * q);
+            p.mesh.material.opacity = p.op * (1 - q * q);
+          });
+
+          // ---------- chamas ----------
+          const flameGeo = new THREE.ConeGeometry(0.35, 1.2, 7);
+          const fires = [];
+          const makeFire = (parent, x, y, z, size) => {
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+            group.visible = false;
+            parent.add(group);
+            const cones = [0, 1, 2].map(i => {
+              const cone = new THREE.Mesh(flameGeo, new THREE.MeshBasicMaterial({ color: i === 0 ? '#ff6a1a' : (i === 1 ? '#ffa030' : '#ffe08a'), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+              cone.position.set((i - 1) * 0.18 * size, 0.55 * size * (1 - i * 0.2), (i % 2) * 0.15 * size);
+              cone.scale.setScalar(size * (1 - i * 0.25));
+              group.add(cone);
+              return cone;
+            });
+            const fire = { group, cones, size, phase: Math.random() * 10 };
+            fires.push(fire);
+            return fire;
+          };
+          const updateFires = (time) => fires.forEach(f => {
+            if (!f.group.visible) return;
+            f.cones.forEach((cone, i) => {
+              const k = 1 + 0.28 * Math.sin(time * (9 + i * 3) + f.phase + i);
+              cone.scale.set(f.size * (1 - i * 0.25) * (0.9 + 0.2 * Math.sin(time * 7 + i)), f.size * (1 - i * 0.25) * k, f.size * (1 - i * 0.25));
+            });
+          });
+
+          // ---------- sirenes giratórias ----------
+          const beacons = [];
+          const makeBeacon = (parent, x, y, z) => {
+            const g = new THREE.Group();
+            g.position.set(x, y, z);
+            g.visible = false;
+            parent.add(g);
+            const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.18, 10), new THREE.MeshStandardMaterial({ color: '#2b323a', roughness: 0.5 }));
+            g.add(base);
+            const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ff2a2a' }));
+            lamp.position.y = 0.09;
+            g.add(lamp);
+            const spin = new THREE.Group();
+            spin.position.y = 0.2;
+            g.add(spin);
+            [1, -1].forEach(dir => {
+              const beam = new THREE.Mesh(new THREE.ConeGeometry(0.55, 4.5, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#ff2020', transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+              beam.rotation.z = (-Math.PI / 2) * dir;
+              beam.position.x = 2.25 * dir;
+              spin.add(beam);
+            });
+            const beacon = { g, spin, lamp };
+            beacons.push(beacon);
+            return beacon;
+          };
+          [[3, 8.1, -4.5], [-3, 8.1, -4.5]].forEach(([x, y, z]) => makeBeacon(root, x, y, z));
+          [[6.9, 3.5, 6.9], [-6.9, 3.5, 6.9]].forEach(([x, y, z]) => {
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.1, 6), new THREE.MeshStandardMaterial({ color: '#8a949e', roughness: 0.5 }));
+            pole.position.set(x, 1.9, z);
+            root.add(pole);
+            makeBeacon(root, x, y + 0.1, z);
+          });
+          [[4.4, 4.45, -3.8], [-4.4, 4.45, -3.8], [-9.6, 4.45, -3.8]].forEach(([x, y, z]) => makeBeacon(treetechWorld, x, y, z));
+          const alarmLight = new THREE.PointLight(0xff2a10, 0, 32, 2);
+          alarmLight.position.set(0, 5, 2);
+          scene.add(alarmLight);
+          const blastLight = new THREE.PointLight(0xffa040, 0, 70, 1.5);
+          blastLight.position.set(0, 4, 0);
+          scene.add(blastLight);
+
+          // ---------- arcos elétricos nas buchas ----------
+          const arcs = [[-0.8, 0], [0, 0.8]].map(([x0, x1]) => {
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(14 * 3), 3));
+            const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: '#cfe8ff', transparent: true, blending: THREE.AdditiveBlending }));
+            line.visible = false;
+            line.frustumCulled = false;
+            root.add(line);
+            return { line, x0, x1 };
+          });
+          const updateArcs = (p) => arcs.forEach(arc => {
+            arc.line.visible = Math.random() < 0.25 + p * 0.6;
+            if (!arc.line.visible) return;
+            const pos = arc.line.geometry.attributes.position.array;
+            for (let i = 0; i < 14; i++) {
+              const q = i / 13;
+              pos[i * 3] = arc.x0 + (arc.x1 - arc.x0) * q + (i > 0 && i < 13 ? rnd(-0.12, 0.12) : 0);
+              pos[i * 3 + 1] = 3.98 + Math.sin(q * Math.PI) * 0.25 + (i > 0 && i < 13 ? rnd(-0.1, 0.1) : 0);
+              pos[i * 3 + 2] = 0.4 + (i > 0 && i < 13 ? rnd(-0.1, 0.1) : 0);
+            }
+            arc.line.geometry.attributes.position.needsUpdate = true;
+          });
+
+          // ---------- explosão ----------
+          const fireballs = [
+            { mesh: new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: '#d63a10', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })), r: 8.5, delay: 0 },
+            { mesh: new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: '#ff9a30', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })), r: 6.2, delay: 0.03 },
+            { mesh: new THREE.Mesh(sphereGeo, new THREE.MeshBasicMaterial({ color: '#fff1c0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })), r: 3.6, delay: 0.06 }
+          ];
+          fireballs.forEach(f => {
+            f.mesh.visible = false;
+            f.mesh.position.set(0, 2.2, 0);
+            root.add(f.mesh);
+          });
+          const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 64), new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+          ring.rotation.x = -Math.PI / 2;
+          ring.position.y = 0.5;
+          ring.visible = false;
+          root.add(ring);
+          const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#fff4e0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+          dome.visible = false;
+          root.add(dome);
+
+          const debris = [];
+          const debrisMats = ['#3a4048', '#1a1a1a', '#7a3a22', '#566068', '#c9b273'].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 }));
+          const concreteMat = new THREE.MeshStandardMaterial({ color: '#9ca6b0', roughness: 0.8 });
+          for (let i = 0; i < 110; i++) {
+            const kind = i % 4;
+            const geo = kind === 0 ? new THREE.BoxGeometry(rnd(0.15, 0.7), rnd(0.1, 0.5), rnd(0.15, 0.7))
+              : kind === 1 ? new THREE.CylinderGeometry(rnd(0.06, 0.16), rnd(0.06, 0.16), rnd(0.4, 1.2), 6)
+                : kind === 2 ? new THREE.BoxGeometry(rnd(0.5, 1.2), 0.08, rnd(0.4, 0.9)) : new THREE.BoxGeometry(0.12, 0.12, 0.12);
+            const mesh = new THREE.Mesh(geo, i >= 70 ? concreteMat : debrisMats[i % debrisMats.length]);
+            mesh.castShadow = true;
+            mesh.visible = false;
+            root.add(mesh);
+            debris.push({ mesh, vel: V3(0, 0, 0), ang: V3(0, 0, 0), rest: true });
+          }
+          const launch = (p, x, y, z, speed, up) => {
+            const a = Math.random() * Math.PI * 2;
+            const h = speed * rnd(0.4, 1);
+            p.mesh.position.set(x, y, z);
+            p.vel.set(Math.cos(a) * h, up * rnd(0.5, 1), Math.sin(a) * h);
+            p.ang.set(rnd(-8, 8), rnd(-8, 8), rnd(-8, 8));
+            p.rest = false;
+            p.mesh.visible = true;
+          };
+          const stepDebris = (dt) => debris.forEach(p => {
+            if (p.rest || !p.mesh.visible) return;
+            p.vel.y -= 24 * dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.mesh.rotation.x += p.ang.x * dt;
+            p.mesh.rotation.y += p.ang.y * dt;
+            p.mesh.rotation.z += p.ang.z * dt;
+            if (p.mesh.position.y < 0.45) {
+              p.mesh.position.y = 0.45;
+              if (Math.abs(p.vel.y) > 2) p.vel.y *= -0.35;
+              else p.vel.y = 0;
+              p.vel.x *= 0.7;
+              p.vel.z *= 0.7;
+              p.ang.multiplyScalar(0.6);
+              if (Math.hypot(p.vel.x, p.vel.z) < 0.3 && p.vel.y === 0) p.rest = true;
+            }
+          });
+
+          // ---------- ruínas ----------
+          const burnt = new THREE.MeshBasicMaterial({ color: '#141414', transparent: true, opacity: 0.88, depthWrite: false });
+          const wreck = new THREE.Group();
+          wreck.visible = false;
+          root.add(wreck);
+          const burnDisc = new THREE.Mesh(new THREE.CircleGeometry(4.8, 28), burnt);
+          burnDisc.rotation.x = -Math.PI / 2;
+          burnDisc.position.y = 0.37;
+          wreck.add(burnDisc);
+          const wreckMat = new THREE.MeshStandardMaterial({ color: '#232323', roughness: 0.9 });
+          const addWreck = (w, h, d, x, y, z, rx, rz) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wreckMat);
+            m.position.set(x, y, z);
+            m.rotation.set(rx || 0, 0, rz || 0);
+            m.castShadow = true;
+            wreck.add(m);
+          };
+          addWreck(3.2, 0.5, 2.4, 0, 0.6, 0, 0, 0);
+          addWreck(1.4, 0.9, 0.12, -1.1, 1.1, 1.0, 0.3, 0.1);
+          addWreck(0.12, 0.8, 1.6, 1.5, 0.9, -0.3, 0, -0.35);
+          addWreck(1.0, 0.1, 1.1, 0.5, 1.1, -0.5, 0.2, 0.15);
+          [-1.0, -0.4, 0.2, 0.8].forEach((x, i) => addWreck(0.12, 1.1 - i * 0.2, 1.4, x, 0.7, -2.0, 0.1 * i, 0.12 * (i - 1.5)));
+          makeFire(wreck, 0, 0.9, 0, 2.2);
+          makeFire(wreck, -1.1, 0.8, 0.5, 1.5);
+          makeFire(wreck, 1.0, 0.8, -0.6, 1.7);
+          makeFire(wreck, 0.2, 0.7, -2.0, 1.2);
+          makeFire(wreck, 1.6, 0.6, 1.0, 1.0);
+
+          const buildingDefs = [
+            { key: 'main', c: [-3.2, -3.2], size: [4.6, 4.6], h: 7 },
+            { key: 'mid', c: [1.5, -3.2], size: [4.4, 4.4], h: 5 },
+            { key: 'office', c: [-2.6, 1.8], size: [5.8, 4.2], h: 3 }
+          ];
+          const collapses = buildingDefs.map(def => {
+            const wx = 16.4 - def.c[0];
+            const wz = -def.c[1];
+            const ruin = new THREE.Group();
+            ruin.position.set(def.c[0], 0, def.c[1]);
+            ruin.visible = false;
+            plantWorld.add(ruin);
+            const disc = new THREE.Mesh(new THREE.CircleGeometry(Math.max(def.size[0], def.size[1]) * 0.62, 20), burnt);
+            disc.rotation.x = -Math.PI / 2;
+            disc.position.y = 0.04;
+            ruin.add(disc);
+            for (let i = 0; i < 16; i++) {
+              const m = new THREE.Mesh(new THREE.BoxGeometry(rnd(0.4, 1.4), rnd(0.15, 0.9), rnd(0.4, 1.4)), i % 3 === 0 ? wreckMat : concreteMat);
+              m.position.set(rnd(-def.size[0] / 2, def.size[0] / 2) * 0.9, 0.3, rnd(-def.size[1] / 2, def.size[1] / 2) * 0.9);
+              m.rotation.set(rnd(-0.4, 0.4), rnd(0, 3), rnd(-0.4, 0.4));
+              m.castShadow = true;
+              ruin.add(m);
+            }
+            const ruinFires = [makeFire(ruin, -def.size[0] * 0.2, 0.4, 0, 1.6), makeFire(ruin, def.size[0] * 0.25, 0.4, def.size[1] * 0.2, 1.2), makeFire(ruin, 0, 0.4, -def.size[1] * 0.25, 1.4)];
+            return { def, wx, wz, dist: Math.hypot(wx, wz), ruin, ruinFires, started: false, tc: 0 };
+          });
+
+          const attached = [moduleNodes.tm.group, moduleNodes.bm.group, moduleNodes.gmp.group, gmpPipe, labelSprites.tm, labelSprites.bm, labelSprites.gmp].filter(Boolean);
+          const flash = document.createElement('div');
+          flash.style.cssText = 'position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:50;';
+          document.body.appendChild(flash);
+          const vignette = document.createElement('div');
+          vignette.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0;box-shadow:inset 0 0 180px 40px rgba(220,20,20,0.75);';
+          document.body.appendChild(vignette);
+
+          const knocked = [];
+          const knock = (obj, ownerFlag) => {
+            const away = obj.position.clone().setY(0);
+            if (away.lengthSq() < 0.01) away.set(1, 0, 0);
+            away.normalize();
+            knocked.push({ obj, start: obj.position.clone(), dir: away, rot: obj.rotation.clone(), t: 0, flag: ownerFlag });
+          };
+          const evac = [];
+          plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(8, 50) }));
+          if (plantOfficeWalker.group) evac.push({ obj: plantOfficeWalker.group, at: rnd(8, 50) });
+
+          const ui = (force) => {
+            const rem = st.phase === 'countdown' ? Math.max(0, Math.ceil(FAIL_SECONDS - st.t)) : 0;
+            const alertIdx = Math.floor(st.t / 3.5);
+            if (!force && rem === st.lastRem && alertIdx === st.lastAlert) return;
+            st.lastRem = rem;
+            st.lastAlert = alertIdx;
+            const stack = [];
+            for (let i = 0; i < 3; i++) if (alertIdx - i >= 0 && st.phase === 'countdown') stack.push(ALERTS[(alertIdx - i) % ALERTS.length]);
+            if (failureUiRef.current) failureUiRef.current({ phase: st.phase, remaining: rem, alerts: stack, muted: audio.muted });
+          };
+
+          const setShown = (list, visible) => list.forEach(o => { o.visible = visible; });
+
+          const explode = () => {
+            st.phase = 'exploded';
+            st.te = 0;
+            failureSim.exploded = true;
+            trafoGroup.visible = false;
+            setShown(attached, false);
+            if (installer.props) installer.props.visible = false;
+            wreck.visible = true;
+            fires.filter(f => wreck.children.includes(f.group)).forEach(f => { f.group.visible = true; });
+            boom();
+            stopSiren();
+            st.shake = 1;
+            flash.style.transition = 'none';
+            flash.style.opacity = '1';
+            requestAnimationFrame(() => {
+              flash.style.transition = 'opacity 1.4s ease-out';
+              flash.style.opacity = '0';
+            });
+            for (let i = 0; i < 70; i++) launch(debris[i], rnd(-1.2, 1.2), rnd(1, 3.5), rnd(-1, 1), 17, 20);
+            for (let i = 0; i < 60; i++) emit(sparkPool, rnd(-1, 1), rnd(1.5, 3), rnd(-1, 1), rnd(-14, 14), rnd(4, 18), rnd(-14, 14), rnd(0.8, 1.8), 1, 0, 1);
+            for (let i = 0; i < 40; i++) emit(smokePool, rnd(-1.5, 1.5), rnd(1.5, 4), rnd(-1.5, 1.5), rnd(-3, 3), rnd(2, 6), rnd(-3, 3), rnd(4, 7), 1.2, 3.2, 0.7);
+            if (installer.rig) {
+              installer.disabled = true;
+              knock(installer.rig, 'installer');
+            }
+            walkers.forEach(w => {
+              if (Math.hypot(w.group.position.x, w.group.position.z) < 11) {
+                w.knocked = true;
+                knock(w.group, 'walker');
+              }
+            });
+            particleSystemsRef.current.forEach(p => { p.visible = false; });
+            ui(true);
+          };
+
+          const startCollapse = (c) => {
+            c.started = true;
+            c.tc = 0;
+            for (let i = 0; i < 18; i++) emit(dustPool, c.wx + rnd(-2, 2), 0.8 + rnd(0, 3), c.wz + rnd(-2, 2), rnd(-2, 2), rnd(0.5, 3), rnd(-2, 2), rnd(2.5, 4.5), 1.5, 3.5, 0.65);
+            const free = debris.slice(70).filter(p => p.rest || !p.mesh.visible);
+            free.slice(0, 13).forEach(p => launch(p, c.wx + rnd(-1.5, 1.5), rnd(2, c.def.h), c.wz + rnd(-1.5, 1.5), 8, 12));
+          };
+
+          return {
+            shake,
+            start: () => {
+              if (st.phase !== 'idle') return;
+              ensureAudio();
+              st.phase = 'countdown';
+              st.t = 0;
+              st.breakerDone = false;
+              st.powerDone = false;
+              st.lastRem = -1;
+              st.lastAlert = -1;
+              failureSim.active = true;
+              failureSim.exploded = false;
+              failureSim.elapsed = 0;
+              failureSim.blackout = false;
+              beacons.forEach(b => { b.g.visible = true; });
+              try {
+                const mq = failureSim.mqTexture;
+                if (mq) st.mqSnap = mq.image.getContext('2d').getImageData(0, 0, 512, 320);
+              } catch (e) {
+                st.mqSnap = null;
+              }
+              startSiren();
+              setAlarms(prev => [{ id: Date.now(), msg: 'FALHA CRÍTICA: Trafo 01 em sobretemperatura. Explosão iminente!', time: new Date().toLocaleTimeString() }, ...prev]);
+              ui(true);
+            },
+            reset: () => {
+              st.phase = 'idle';
+              st.t = 0;
+              failureSim.active = false;
+              failureSim.exploded = false;
+              failureSim.blackout = false;
+              failureSim.elapsed = 0;
+              stopSiren();
+              trafoGroup.visible = true;
+              trafoGroup.position.x = 0;
+              trafoGroup.scale.set(1, 1, 1);
+              setShown(attached, true);
+              if (installer.props) installer.props.visible = true;
+              installer.disabled = false;
+              if (installer.rig) installer.rig.rotation.set(0, 0, 0);
+              walkers.forEach(w => {
+                w.knocked = false;
+                w.group.rotation.set(0, 0, 0);
+              });
+              knocked.length = 0;
+              wreck.visible = false;
+              fires.forEach(f => { f.group.visible = false; });
+              collapses.forEach(c => {
+                c.started = false;
+                c.ruin.visible = false;
+                const g = plantParts[c.def.key];
+                if (g) {
+                  g.visible = true;
+                  g.scale.set(1, 1, 1);
+                  g.position.set(0, 0, 0);
+                }
+              });
+              [smokePool, dustPool, sparkPool].forEach(pool => pool.forEach(p => { p.life = 0; p.mesh.visible = false; }));
+              debris.forEach(p => { p.rest = true; p.mesh.visible = false; });
+              fireballs.forEach(f => { f.mesh.visible = false; });
+              ring.visible = false;
+              dome.visible = false;
+              beacons.forEach(b => { b.g.visible = false; });
+              arcs.forEach(a => { a.line.visible = false; });
+              alarmLight.intensity = 0;
+              blastLight.intensity = 0;
+              flash.style.transition = 'none';
+              flash.style.opacity = '0';
+              vignette.style.opacity = '0';
+              matTrafo.emissive.setHex(0x000000);
+              matTrafo.emissiveIntensity = 0;
+              matRadiator.emissive.setHex(0x000000);
+              matRadiator.emissiveIntensity = 0;
+              evac.forEach(e => { e.obj.visible = true; });
+              particleSystemsRef.current.forEach(p => { p.visible = true; });
+              homeLife.setPower(true);
+              try {
+                const mq = failureSim.mqTexture;
+                if (mq && st.mqSnap) {
+                  mq.image.getContext('2d').putImageData(st.mqSnap, 0, 0);
+                  mq.needsUpdate = true;
+                }
+              } catch (e) {
+                // sem restauração da tela
+              }
+              setBreakerClosed(true);
+              setAlarms(prev => [{ id: Date.now(), msg: 'SISTEMA: Subestação restaurada e energizada.', time: new Date().toLocaleTimeString() }, ...prev]);
+              ui(true);
+            },
+            setMuted: (muted) => {
+              audio.muted = muted;
+              if (muted) stopSiren();
+              else if (st.phase === 'countdown') startSiren();
+              ui(true);
+            },
+            update: (time) => {
+              const dt = Math.min(0.1, Math.max(0, time - st.last));
+              st.last = time;
+              stepPool(smokePool, dt, 0.35);
+              stepPool(dustPool, dt, 0.05);
+              stepPool(sparkPool, dt, -14);
+              stepDebris(dt);
+              updateFires(time);
+              beacons.forEach(b => {
+                if (!b.g.visible) return;
+                b.spin.rotation.y = time * 5;
+                b.lamp.material.color.set(Math.floor(time * 4) % 2 ? '#ff2a2a' : '#ff9a9a');
+              });
+              shake.set(0, 0, 0);
+              if (st.phase === 'idle') return;
+
+              if (st.phase === 'countdown') {
+                st.t += dt;
+                failureSim.elapsed = st.t;
+                const p = Math.min(1, st.t / FAIL_SECONDS);
+                const pulse = 0.5 + 0.5 * Math.sin(time * (4 + 10 * p));
+                matTrafo.emissive.setHex(0xff2a10);
+                matTrafo.emissiveIntensity = (0.05 + 0.85 * p) * (0.6 + 0.4 * pulse);
+                matRadiator.emissive.setHex(0xff2a10);
+                matRadiator.emissiveIntensity = (0.04 + 0.7 * p) * (0.6 + 0.4 * pulse);
+                alarmLight.intensity = 3.2 * (0.5 + 0.5 * Math.sin(time * 6)) * ss(0, 3, st.t);
+                vignette.style.opacity = String(0.35 + 0.35 * Math.sin(time * 5));
+                trafoGroup.position.x = Math.sin(time * 55) * 0.006 * (1 + 5 * p) * ss(8, 20, st.t);
+                const s = 1 + 0.012 * p * Math.sin(time * 18);
+                trafoGroup.scale.set(s, 1 + 0.015 * p * Math.sin(time * 22), s);
+
+                st.smoke += dt * (1 + 34 * Math.pow(Math.max(0, (st.t - 2) / 58), 1.2)) * (st.t > 2 ? 1 : 0);
+                while (st.smoke >= 1) {
+                  st.smoke -= 1;
+                  emit(smokePool, rnd(-1.2, 1.2), rnd(2.6, 3.8), rnd(-0.8, 0.6), rnd(0.2, 1.0), rnd(1.4, 2.6) + p * 2, rnd(-0.3, 0.3), rnd(3.5, 5.5), rnd(0.3, 0.5), rnd(1.4, 2.4), 0.55);
+                }
+                st.spark += dt * (p > 0.12 ? 2 + 14 * p : 0);
+                while (st.spark >= 1) {
+                  st.spark -= 1;
+                  const bx = [-0.8, 0, 0.8][Math.floor(Math.random() * 3)];
+                  emit(sparkPool, bx, 3.9, 0.4, rnd(-3, 3), rnd(2, 6), rnd(-3, 3), rnd(0.5, 1.1), 1, 0, 1);
+                }
+                updateArcs(p);
+                if (p > 0.7) st.shake = Math.max(st.shake, (p - 0.7) / 0.3 * 0.12);
+                evac.forEach(e => { if (st.t > e.at) e.obj.visible = false; });
+                if (st.mqNext <= time && failureSim.mqTexture) {
+                  st.mqNext = time + 0.2;
+                  failureSim.paintAlert(failureSim.mqTexture.image.getContext('2d'), 512, 320, time);
+                  failureSim.mqTexture.needsUpdate = true;
+                }
+                if (audio.gain) audio.gain.gain.value = 0.05 + 0.05 * p;
+                ui(false);
+                if (st.t >= FAIL_SECONDS) explode();
+              } else {
+                st.te += dt;
+                const te = st.te;
+                blastLight.intensity = 38 * Math.exp(-te * 2.2);
+                alarmLight.intensity = 0;
+                vignette.style.opacity = '0';
+                trafoGroup.scale.set(1, 1, 1);
+                fireballs.forEach(f => {
+                  const q = Math.max(0, te - f.delay);
+                  f.mesh.visible = q > 0 && q < 3;
+                  const r = f.r * (1 - Math.exp(-q * 3.4)) + 0.2;
+                  f.mesh.scale.set(r, r * 0.85, r);
+                  f.mesh.position.y = 2.2 + r * 0.35;
+                  f.mesh.material.opacity = Math.max(0, 0.95 * (1 - ss(0.5, 2.6, q)));
+                });
+                ring.visible = te < 3.2;
+                const rr = 1 + 32 * te;
+                ring.scale.set(rr, rr, rr);
+                ring.material.opacity = 0.7 * (1 - te / 3.2);
+                dome.visible = te < 1.6;
+                dome.scale.setScalar(1 + 26 * te);
+                dome.material.opacity = 0.35 * (1 - te / 1.6);
+
+                collapses.forEach(c => {
+                  if (!c.started && rr >= c.dist) startCollapse(c);
+                  if (c.started && !c.ruin.visible) {
+                    c.tc += dt;
+                    const g = plantParts[c.def.key];
+                    const e = ss(0, 1.2, c.tc);
+                    if (g) {
+                      g.scale.y = Math.max(0.05, 1 - 0.95 * e * e);
+                      g.position.x = Math.sin(time * 70) * 0.05 * (1 - e);
+                    }
+                    if (Math.random() < 0.6) emit(dustPool, c.wx + rnd(-2, 2), 0.5, c.wz + rnd(-2, 2), rnd(-1, 1), rnd(0.8, 2.5), rnd(-1, 1), rnd(2, 3.5), 1.2, 3, 0.55);
+                    if (c.tc >= 1.2) {
+                      if (g) g.visible = false;
+                      c.ruin.visible = true;
+                      c.ruinFires.forEach(f => { f.group.visible = true; });
+                    }
+                  }
+                });
+
+                st.shake = Math.max(0, st.shake - dt * 0.4);
+                if (te > 0.1 && !st.powerDone && te > 0.7) {
+                  st.powerDone = true;
+                  homeLife.setPower(false);
+                }
+                const b = te >= 0.1 && !(te >= 0.22 && te < 0.38) && !(te >= 0.5 && te < 0.7);
+                failureSim.blackout = b || te >= 0.7;
+                if (te >= 0.9 && !st.breakerDone) {
+                  st.breakerDone = true;
+                  setBreakerClosed(false);
+                  setAlarms(prev => [{ id: Date.now(), msg: 'FALHA: Trafo 01 destruído. Cidade sem energia.', time: new Date().toLocaleTimeString() }, ...prev]);
+                }
+
+                st.smoke += dt * 22;
+                while (st.smoke >= 1) {
+                  st.smoke -= 1;
+                  emit(smokePool, rnd(-1.8, 1.8), rnd(1.2, 2.4), rnd(-1.8, 1.8), rnd(0.4, 1.4), rnd(2.2, 4.2), rnd(-0.4, 0.4), rnd(5, 8), rnd(0.8, 1.2), rnd(2.6, 4), 0.7);
+                }
+                st.dust += dt * 7;
+                while (st.dust >= 1) {
+                  st.dust -= 1;
+                  const c = collapses[Math.floor(Math.random() * collapses.length)];
+                  if (c.ruin.visible) emit(smokePool, c.wx + rnd(-1.5, 1.5), 1, c.wz + rnd(-1.5, 1.5), rnd(0.2, 1.2), rnd(1.4, 2.8), rnd(-0.3, 0.3), rnd(4, 6.5), 0.7, 2.4, 0.5);
+                }
+                if (Math.random() < 0.15) emit(sparkPool, rnd(-1.5, 1.5), 1.2, rnd(-1.5, 1.5), rnd(-2, 2), rnd(3, 7), rnd(-2, 2), rnd(0.6, 1.2), 1, 0, 1);
+                if (failureSim.mqTexture && st.mqNext <= time) {
+                  st.mqNext = time + 0.2;
+                  failureSim.paintAlert(failureSim.mqTexture.image.getContext('2d'), 512, 320, time);
+                  failureSim.mqTexture.needsUpdate = true;
+                }
+
+                knocked.forEach(k => {
+                  k.t = Math.min(1, k.t + dt / 0.7);
+                  const e = 1 - Math.pow(1 - k.t, 2);
+                  k.obj.position.set(k.start.x + k.dir.x * 3 * e, k.start.y + 0.15 * e, k.start.z + k.dir.z * 3 * e);
+                  k.obj.rotation.x = -Math.PI / 2 * e;
+                });
+              }
+              shake.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(st.shake);
+            },
+            late: (time) => {
+              if (st.phase === 'idle') return;
+              const blink = Math.floor(time * 4) % 2 === 0;
+              ['tm', 'bm', 'gmp', 'dm1', 'dm2'].forEach(key => {
+                const node = moduleNodes[key];
+                if (node && node.led) node.led.material.color.set(st.phase === 'exploded' ? '#1a1a1a' : (blink ? '#ff2a2a' : '#5a0000'));
+              });
+              if (treetechLed.mesh) treetechLed.mesh.material.color.set(blink ? '#ff2a2a' : '#5a0000');
+            }
+          };
+        })();
+
+        sceneApiRef.current.startFailure = failureCtl.start;
+        sceneApiRef.current.resetFailure = failureCtl.reset;
+        sceneApiRef.current.setMuted = failureCtl.setMuted;
+
         // LOOP DE ANIMAÇÃO 3D
         let animationFrameId;
         const clock = new THREE.Clock();
@@ -6095,6 +6864,7 @@
           const time = clock.getElapsedTime();
 
           controls.update();
+          failureCtl.update(time);
 
           // Animação de partículas de energia fluindo pelos cabos
           particleSystemsRef.current.forEach(p => {
@@ -6142,6 +6912,7 @@
 
           updateWorld(time);
           updateNetwork(time);
+          failureCtl.late(time);
           updateDusk();
           applyDuskLamps();
 
@@ -6165,7 +6936,7 @@
           });
 
           // Cidade: pulsos, cabos e janelas seguem o estado do disjuntor
-          const cityOn = breakerClosedRef.current;
+          const cityOn = breakerClosedRef.current && !failureSim.blackout;
           cityPulses.forEach(p => {
             p.visible = cityOn;
             if (cityOn) {
@@ -6181,6 +6952,7 @@
 
           // Pessoas caminhando: posição pela distância percorrida, passos sincronizados com ela
           walkers.forEach(w => {
+            if (w.knocked) return;
             const travelled = time * w.speed + w.offset;
             const s = samplePath(w.path, travelled);
             w.group.position.set(s.x, 0.35, s.z);
@@ -6201,7 +6973,9 @@
             trafo.position.y = vibe;
           }
 
+          camera.position.add(failureCtl.shake);
           renderer.render(scene, camera);
+          camera.position.sub(failureCtl.shake);
         };
 
         animate();
@@ -6338,6 +7112,36 @@
           <header className="pointer-events-none flex justify-end">
             {/* BARRA DE CONTROLES RÁPIDOS */}
             <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-2 shadow-2xl">
+              {failure.phase === 'idle' && (
+                <button
+                  onClick={() => { setCameraPreset('iso'); sceneApiRef.current.startFailure(); }}
+                  className="px-3 py-2 rounded-lg font-bold text-xs bg-red-700 hover:bg-red-600 text-white shadow-lg shadow-red-900/50 border border-red-400/60"
+                >
+                  ⚠ FALHA
+                </button>
+              )}
+              {failure.phase === 'countdown' && (
+                <button disabled className="px-3 py-2 rounded-lg font-bold text-xs bg-red-900 text-red-200 border border-red-500 animate-pulse">
+                  ⚠ FALHA EM CURSO · {failure.remaining}s
+                </button>
+              )}
+              {failure.phase === 'exploded' && (
+                <button
+                  onClick={() => sceneApiRef.current.resetFailure()}
+                  className="px-3 py-2 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300/60"
+                >
+                  ↺ RESTAURAR SISTEMA
+                </button>
+              )}
+              {failure.phase !== 'idle' && (
+                <button
+                  onClick={() => sceneApiRef.current.setMuted(!failure.muted)}
+                  className="px-2 py-2 rounded-lg text-xs bg-slate-800 border border-slate-600 text-slate-200"
+                  title="Som"
+                >
+                  {failure.muted ? '🔇' : '🔊'}
+                </button>
+              )}
               <button
                 onClick={toggleBreaker}
                 className={`px-3 py-2 rounded-lg font-bold text-xs transition-all shadow-lg flex items-center gap-2 ${
@@ -6351,6 +7155,32 @@
               </button>
             </div>
           </header>
+
+          {/* PAINEL DA FALHA: contagem regressiva e alertas girando */}
+          {failure.phase === 'countdown' && (
+            <div className="pointer-events-none fixed left-1/2 -translate-x-1/2 top-20 w-[30rem] max-w-[92vw] z-30">
+              <div className="bg-red-700/95 border-2 border-red-300 rounded-xl px-4 py-3 shadow-2xl shadow-red-900/60 animate-pulse text-center">
+                <div className="text-[11px] font-bold tracking-widest text-red-100">FALHA CRÍTICA · TRAFO 01</div>
+                <div className="text-4xl font-black font-mono text-white leading-tight">
+                  {String(Math.floor(failure.remaining / 60)).padStart(1, '0')}:{String(failure.remaining % 60).padStart(2, '0')}
+                </div>
+                <div className="text-[11px] text-red-100">tempo até a explosão</div>
+              </div>
+              <div className="mt-2 flex flex-col gap-1">
+                {failure.alerts.map((alert, i) => (
+                  <div key={alert} className={`bg-slate-950/90 border border-red-500/70 text-red-200 text-xs rounded-lg px-3 py-1.5 ${i === 0 ? 'font-bold opacity-100' : 'opacity-60'}`}>
+                    ⚠ {alert}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {failure.phase === 'exploded' && (
+            <div className="pointer-events-none fixed left-1/2 -translate-x-1/2 top-20 z-30 bg-slate-950/90 border-2 border-red-500 rounded-xl px-5 py-3 text-center shadow-2xl">
+              <div className="text-sm font-black text-red-400 tracking-wider">TRANSFORMADOR DESTRUÍDO</div>
+              <div className="text-xs text-slate-300">A usina foi atingida e a cidade está sem energia.</div>
+            </div>
+          )}
 
           {/* PAINEL CENTRAL DE VISUALIZAÇÃO E TELEMETRIA */}
           <div className="flex justify-between items-start gap-4 my-auto">
