@@ -156,6 +156,14 @@
         mode: 'sync',
         roofs: { plant: false, treetech: true, factory: false },
         labels: ['sigma', 'plant']
+      },
+      {
+        title: 'Energia garantida para a cidade',
+        text: 'Toda essa infraestrutura garante o abastecimento de energia elétrica da cidade: os módulos vigiam o transformador e os disjuntores, o Sigma ECM avisa a equipe antes de uma falha e a Treetech instala e acompanha tudo, da fábrica até a subestação.',
+        camera: { position: [96, 50, 24], target: [34, 0, -10] },
+        mode: 'sync',
+        roofs: { plant: false, treetech: false, factory: false },
+        labels: ['substation', 'treetech', 'plant']
       }
     ];
 
@@ -5922,14 +5930,68 @@
         };
         buildCityLife();
 
+        // Trânsito e pedestres perto da subestação: podem ser atingidos pela explosão
+        const nearby = [];
+        const buildNearby = () => {
+          const wheelMat = new THREE.MeshStandardMaterial({ color: '#2b323a', roughness: 0.8 });
+          const glassMat = new THREE.MeshStandardMaterial({ color: '#7f98aa', roughness: 0.3 });
+          const makeCar = (color) => {
+            const car = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.45 });
+            addSlab(car, 0.9, 0.35, 1.9, bodyMat, 0, 0.38, 0);
+            addSlab(car, 0.8, 0.3, 1.0, bodyMat, 0, 0.7, -0.1);
+            addSlab(car, 0.82, 0.2, 0.9, glassMat, 0, 0.72, -0.1, false);
+            [[-0.45, 0.6], [0.45, 0.6], [-0.45, -0.6], [0.45, -0.6]].forEach(([wx, wz]) => {
+              const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 12), wheelMat);
+              wheel.rotation.z = Math.PI / 2;
+              wheel.position.set(wx, 0.2, wz);
+              car.add(wheel);
+            });
+            addVehicleLights(car, 0.96, -0.96, 0.42, 0.3);
+            scene.add(car);
+            return car;
+          };
+          const driving = makeCar('#c9b87a');
+          nearby.push({ group: driving, path: makePath([[-4, 19.0], [-4, 11.0]], 'pingpong'), speed: 1.6, offset: 0, y: 0.06 });
+          const parked = makeCar('#a8606c');
+          parked.position.set(-8.2, 0.03, 15);
+          parked.userData.parked = true;
+          nearby.push({ group: parked, fixed: true });
+          [{ color: '#c8a07a', pts: [[9.2, -5], [9.2, 5]], speed: 0.9, offset: 0 }, { color: '#8aa0c0', pts: [[-2, 9.2], [8, 9.2]], speed: 0.8, offset: 6 }].forEach(def => {
+            const person = createWorker(def.color);
+            person.userData.helmet.visible = false;
+            scene.add(person);
+            nearby.push({ group: person, path: makePath(def.pts, 'pingpong'), speed: def.speed, offset: def.offset, y: 0.02, walker: true });
+          });
+        };
+        buildNearby();
+
         const updateWorld = (time) => {
+          nearby.forEach(e => {
+            if (e.hit || e.fixed) return;
+            const travelled = time * e.speed + e.offset;
+            const sm = samplePath(e.path, travelled);
+            e.group.position.set(sm.x, e.y, sm.z);
+            e.group.rotation.y = sm.heading;
+            if (e.walker) {
+              const swing = Math.sin(travelled * 5) * 0.7;
+              const parts = e.group.userData;
+              parts.leftLeg.rotation.x = swing;
+              parts.rightLeg.rotation.x = -swing;
+              parts.leftArm.rotation.x = -swing * 0.8;
+              parts.rightArm.rotation.x = swing * 0.8;
+            }
+          });
+
           cityCars.forEach(car => {
+            if (car.hit) return;
             const s = samplePath(car.path, time * car.speed + car.offset);
             car.group.position.set(s.x, 0.03, s.z);
             car.group.rotation.y = s.heading;
           });
 
           cityPeople.forEach(person => {
+            if (person.hit) return;
             const travelled = time * person.speed + person.offset;
             const s = samplePath(person.path, travelled);
             person.group.position.set(s.x, 0.02, s.z);
@@ -5943,6 +6005,7 @@
           });
 
           vans.forEach(van => {
+            if (van.hit) return;
             const travelled = time * van.speed + van.offset;
             const s = samplePath(van.path, travelled);
             van.group.position.set(s.x, 0.06, s.z);
@@ -6918,12 +6981,113 @@
           vignette.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0;box-shadow:inset 0 0 180px 40px rgba(220,20,20,0.75);';
           document.body.appendChild(vignette);
 
-          const knocked = [];
-          const knock = (obj, ownerFlag) => {
-            const away = obj.position.clone().setY(0);
+          // carros e pessoas perto da explosão: arremessados quando a onda de choque chega
+          const HIT_R = 30;
+          const victims = [];
+          const carFires = Array.from({ length: 6 }, () => {
+            const f = makeFire(root, 0, 0, 0, 0.9);
+            f.used = false;
+            return f;
+          });
+          const wp = V3(0, 0, 0);
+          const collectVictims = () => {
+            victims.length = 0;
+            const add = (obj, kind, setHit) => victims.push({ obj, kind, setHit, hit: false, flying: false, t: 0, fire: null });
+            walkers.forEach(w => add(w.group, 'person', v => { w.knocked = v; }));
+            if (installer.rig) add(installer.rig, 'person', v => { installer.disabled = v; });
+            vans.forEach(van => add(van.group, 'car', v => { van.hit = v; }));
+            cityCars.forEach(car => add(car.group, 'car', v => { car.hit = v; }));
+            cityPeople.forEach(p => add(p.group, 'person', v => { p.hit = v; }));
+            nearby.forEach(e => add(e.group, e.walker ? 'person' : 'car', v => { e.hit = v; }));
+          };
+          const startFlight = (v, dist) => {
+            const k = 1 - dist / HIT_R;
+            const o = v.obj;
+            v.hit = true;
+            v.flying = true;
+            v.t = 0;
+            v.k = k;
+            v.setHit(true);
+            const away = V3(wp.x, 0, wp.z);
             if (away.lengthSq() < 0.01) away.set(1, 0, 0);
-            away.normalize();
-            knocked.push({ obj, start: obj.position.clone(), dir: away, t: 0, flag: ownerFlag });
+            v.dir = away.normalize();
+            v.start = o.position.clone();
+            v.startRot = o.rotation.clone();
+            const car = v.kind === 'car';
+            v.D = car ? 4 + 10 * k : 3 + 7 * k;
+            v.H = car ? 1 + 3.5 * k : 0.8 + 2.2 * k;
+            v.T = car ? 1.2 : 0.9;
+            v.finalX = car ? (Math.random() < 0.5 ? 1 : -1) * 0.35 * k : -Math.PI / 2 * (Math.random() < 0.8 ? 1 : -1);
+            v.finalZ = car ? (Math.random() < 0.5 ? 1 : -1) * (Math.random() < 0.4 ? Math.PI : Math.PI / 2) : 0;
+            v.spinY = rnd(-1, 1) * (car ? 1.2 : 0.8) * Math.max(0.3, k);
+          };
+          const landVictim = (v) => {
+            v.flying = false;
+            v.obj.getWorldPosition(wp);
+            for (let i = 0; i < 6; i++) emit(dustPool, wp.x + rnd(-0.6, 0.6), 0.3, wp.z + rnd(-0.6, 0.6), rnd(-1, 1), rnd(0.5, 1.8), rnd(-1, 1), rnd(1.5, 2.5), 0.6, 1.6, 0.5);
+            if (v.kind === 'car' && v.k > 0.12) {
+              const f = carFires.find(c => !c.used);
+              if (f) {
+                f.used = true;
+                v.fire = f;
+                f.group.position.set(wp.x, 0.5, wp.z);
+                f.group.visible = true;
+                f.amount = 1;
+              }
+              for (let i = 0; i < 10; i++) emit(sparkPool, wp.x, 0.6, wp.z, rnd(-4, 4), rnd(2, 6), rnd(-4, 4), rnd(0.4, 0.9), 1, 0, 1);
+            }
+          };
+          const stepVictims = (dt, rr) => victims.forEach(v => {
+            const o = v.obj;
+            if (!v.hit) {
+              o.getWorldPosition(wp);
+              const dist = Math.hypot(wp.x, wp.z);
+              if (dist <= HIT_R && rr >= dist) startFlight(v, dist);
+              return;
+            }
+            if (v.flying) {
+              v.t += dt / v.T;
+              const u = Math.min(1, v.t);
+              const e = 1 - (1 - u) * (1 - u);
+              o.position.set(v.start.x + v.dir.x * v.D * e, v.start.y + v.H * 4 * u * (1 - u), v.start.z + v.dir.z * v.D * e);
+              o.rotation.x = v.startRot.x + v.finalX * e + Math.sin(u * Math.PI) * 0.4 * v.k;
+              o.rotation.z = v.startRot.z + v.finalZ * e;
+              o.rotation.y = v.startRot.y + v.spinY * e;
+              if (u >= 1) landVictim(v);
+            } else if (v.fire && Math.random() < dt * 4) {
+              o.getWorldPosition(wp);
+              emit(smokePool, wp.x + rnd(-0.3, 0.3), 0.9, wp.z + rnd(-0.3, 0.3), rnd(0.2, 0.8), rnd(1.4, 2.6), rnd(-0.3, 0.3), rnd(3, 5), 0.5, 1.8, 0.55);
+            }
+          });
+          const restoreVictims = (tr) => victims.forEach(v => {
+            if (!v.hit) return;
+            const o = v.obj;
+            if (v.kind === 'person') {
+              const e = 1 - ss(14, 15.6, tr);
+              o.position.set(v.start.x + v.dir.x * v.D * e, v.start.y, v.start.z + v.dir.z * v.D * e);
+              o.rotation.x = v.startRot.x + v.finalX * e;
+            } else {
+              o.scale.setScalar(Math.max(0.001, 1 - ss(11, 12, tr)));
+            }
+          });
+          const releaseVictims = () => {
+            victims.forEach(v => {
+              if (!v.hit) return;
+              const o = v.obj;
+              if (v.kind === 'car') {
+                o.rotation.x = 0;
+                o.rotation.z = 0;
+                o.scale.setScalar(1);
+              } else {
+                o.rotation.x = 0;
+                o.rotation.z = 0;
+              }
+              if (o.userData.parked) o.position.copy(v.start);
+              if (v.fire) v.fire.used = false;
+              v.setHit(false);
+              v.hit = false;
+            });
+            victims.length = 0;
           };
           const evac = [];
           plantSeated.forEach(s => evac.push({ obj: s.worker, at: rnd(2, FAIL_SECONDS - 4), back: rnd(8, 16) }));
@@ -6984,16 +7148,7 @@
             for (let i = 0; i < 70; i++) launch(debris[i], rnd(-1.2, 1.2), rnd(1, 3.5), rnd(-1, 1), 17, 20);
             for (let i = 0; i < 60; i++) emit(sparkPool, rnd(-1, 1), rnd(1.5, 3), rnd(-1, 1), rnd(-14, 14), rnd(4, 18), rnd(-14, 14), rnd(0.8, 1.8), 1, 0, 1);
             for (let i = 0; i < 40; i++) emit(smokePool, rnd(-1.5, 1.5), rnd(1.5, 4), rnd(-1.5, 1.5), rnd(-3, 3), rnd(2, 6), rnd(-3, 3), rnd(4, 7), 1.2, 3.2, 0.7);
-            if (installer.rig) {
-              installer.disabled = true;
-              knock(installer.rig, 'installer');
-            }
-            walkers.forEach(w => {
-              if (Math.hypot(w.group.position.x, w.group.position.z) < 11) {
-                w.knocked = true;
-                knock(w.group, 'walker');
-              }
-            });
+            collectVictims();
             particleSystemsRef.current.forEach(p => { p.visible = false; });
             ui(true);
           };
@@ -7245,12 +7400,7 @@
                   failureSim.mqTexture.needsUpdate = true;
                 }
 
-                knocked.forEach(k => {
-                  k.t = Math.min(1, k.t + dt / 0.7);
-                  const e = 1 - Math.pow(1 - k.t, 2);
-                  k.obj.position.set(k.start.x + k.dir.x * 3 * e, k.start.y + 0.15 * e, k.start.z + k.dir.z * 3 * e);
-                  k.obj.rotation.x = -Math.PI / 2 * e;
-                });
+                stepVictims(dt, rr);
               } else {
                 // restauração gradual
                 st.tr += dt;
@@ -7344,16 +7494,10 @@
                 vignette.style.opacity = '0';
 
                 // 6. técnico e vigias se levantam e voltam ao trabalho; funcionários voltam
-                knocked.forEach(k => {
-                  const e = ss(14, 15.6, tr);
-                  k.obj.position.set(k.start.x + k.dir.x * 3 * (1 - e), k.start.y + 0.15 * (1 - e), k.start.z + k.dir.z * 3 * (1 - e));
-                  k.obj.rotation.x = -Math.PI / 2 * (1 - e);
-                });
+                restoreVictims(tr);
                 if (tr > 15.8 && !st.knockReleased) {
                   st.knockReleased = true;
-                  installer.disabled = false;
-                  walkers.forEach(w => { w.knocked = false; });
-                  knocked.length = 0;
+                  releaseVictims();
                 }
                 evac.forEach(e => { if (tr > e.back) e.obj.visible = true; });
 
