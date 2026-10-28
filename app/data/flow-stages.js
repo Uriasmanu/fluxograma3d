@@ -1,7 +1,7 @@
     // Etapas do pacote que a câmera acompanha no E3 e no Sync (índices usados por `stage` nos trechos da simulação)
     const FLOW_STAGES = {
       e3: ['Sigma pergunta', 'TCP/IP até o módulo', 'Módulo responde', 'TCP/IP de volta', 'Banco de dados', 'Painel Sigma'],
-      sync: ['Módulo envia', 'TCP/IP até a Treetech', 'Fila RabbitMQ', 'Sigma retira', 'Banco de dados', 'Painel Sigma']
+      sync: ['Módulo envia', 'Internet até a Treetech', 'Fila RabbitMQ', 'Sigma retira', 'Banco de dados', 'Painel Sigma']
     };
     const FLOW_CAPTIONS = {
       e3: [
@@ -14,7 +14,7 @@
       ],
       sync: [
         'O módulo envia a atualização por conta própria, sem ser perguntado.',
-        'A mensagem viaja por TCP/IP até a Treetech.',
+        'A mensagem viaja pela internet até a Treetech.',
         'Ela entra na fila do RabbitMQ e espera a sua vez.',
         'O Sigma retira a mensagem da fila.',
         'O Sigma grava a leitura no banco de dados.',

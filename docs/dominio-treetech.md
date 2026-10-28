@@ -9,7 +9,7 @@ Este documento explica o que a cena 3D representa. Ele separa três coisas: o qu
 - A **Treetech** é uma empresa que **produz módulos**, as peças que vão na estação de energia (subestação) e nos transformadores. Além disso, ela **fez o software que monitora esses módulos**.
 - Há **duas formas de monitorar**:
   - **E3**: comunicação TCP/IP. O software **pergunta ao módulo** se há informações para atualizar. É um modelo de consulta (*polling*).
-  - **Sync (RabbitMQ)**: o software **recebe do módulo** as informações de atualização. É um modelo de publicação (*push*) por fila de mensagens.
+  - **Sync (RabbitMQ)**: o software **recebe do módulo** as informações de atualização. É um modelo de publicação (*push*) por fila de mensagens, e a mensagem viaja pela **internet** (não por TCP/IP).
 - **Independentemente da forma**, as informações são **salvas em um banco de dados**, que pode ser **PostgreSQL ou SQL Server**, e são **exibidas no software Sigma ECM**.
 
 ### Fluxos
@@ -18,7 +18,7 @@ Este documento explica o que a cena 3D representa. Ele separa três coisas: o qu
 E3    (consulta)   Sigma  ── "tem algo novo?" ──▶  Módulo
                    Sigma  ◀── resposta/dados ────  Módulo         (TCP/IP)
 
-Sync  (publicação) Módulo ── atualização ──▶ RabbitMQ ──▶ Sigma   (fila de mensagens)
+Sync  (publicação) Módulo ── atualização ──▶ RabbitMQ ──▶ Sigma   (internet, fila de mensagens)
 
 Nos dois casos:    Sigma ──▶ Banco de dados (PostgreSQL ou SQL Server) ──▶ tela do Sigma ECM
 ```
@@ -57,12 +57,12 @@ Nos dois casos:    Sigma ──▶ Banco de dados (PostgreSQL ou SQL Server) ─
 | **Galpão com linha de produção** | A **fábrica de módulos** da Treetech: esteira com módulos, funcionários na montagem e um supervisor, com caixas de módulos na entrada |
 | **Três salas atrás da linha de produção** | O **desenvolvimento de protótipos**: eletrônica (bancada com protótipos), testes e ensaios (câmara térmica e osciloscópio) e projeto e P&D (mesas com PC e quadro branco) |
 | **Estrada com duas vans** | O transporte dos módulos da fábrica até o portão sul da subestação. Elas saem carregadas e voltam vazias |
-| **Prédio da Treetech, de 3 andares** | **Térreo**: recepção e a torre do servidor, que roda o RabbitMQ, o Sigma e o banco de dados. **1º andar**: a equipe de desenvolvimento, que configura o módulo. **3º andar**: o painel do Sigma ECM e uma sala de reunião |
+| **Prédio da Treetech, de 4 andares** | **Térreo**: recepção e a torre do servidor, que roda o RabbitMQ, o Sigma e o banco de dados. **1º andar**: a equipe de desenvolvimento, que configura o módulo. **3º andar**: o painel do Sigma ECM e um canto de descanso. **4º andar**: a sala de reunião com o cliente |
 | **Telas dos desenvolvedores (1º andar)** | Alternam a cada 7 s entre **Script** (mapeamento do módulo em SQL), **E3** (endereço, porta e intervalo de consulta, com teste de pergunta e resposta) e **Sync** (broker, fila e JSON publicado). Os valores são ilustrativos |
 | **Tubo de vidro com pilha de caixas laranja** | A **fila do RabbitMQ**; a altura da pilha é a profundidade da fila |
 | **Dois cilindros (PostgreSQL e SQL Server)** | O **banco de dados**. O que está em uso fica destacado em verde e alterna a cada 14 s para mostrar as duas opções |
 | **Painel de 4 × 2 telas no 3º andar** | O **Sigma ECM** exibindo as informações |
-| **Antenas na subestação e na Treetech, com arcos de luz** | A **rede TCP/IP** entre os módulos e o servidor (desenho esquemático, não o meio físico real) |
+| **Antenas na subestação e na Treetech, com arcos de luz** | A rede entre os módulos e o servidor: **TCP/IP** no E3 e **internet** no Sync (desenho esquemático, não o meio físico real) |
 | **Usina, com o escritório e os PCs** | A empresa de energia, cliente da Treetech? Os PCs do escritório são **usuários do Sigma ECM**? Eles têm cabos até o servidor da Treetech |
 | **Cidade, torres de transmissão e postes de luz** | Os consumidores e a rede que a subestação alimenta |
 
@@ -91,12 +91,12 @@ O botão **Tour: como funciona**, no canto esquerdo, leva a câmera por onze pas
 
 1. **A Treetech**: fabrica módulos e também fez o software que os monitora.
 2. **A fábrica de módulos**: o galpão com a linha de produção.
-3. **A reunião com o cliente**: numa sala do prédio, o cliente pede os módulos, o Sigma ECM (o site) e a instalação no transformador. Eles apertam as mãos e o negócio é fechado.
+3. **A reunião com o cliente**: na sala de reuniões, no último andar do prédio, o cliente pede os módulos, o Sigma ECM (o site) e a instalação no transformador. Eles apertam as mãos e o negócio é fechado.
 4. **Os desenvolvedores configuram o módulo**: a equipe escreve o script de mapeamento e define o E3 e o Sync. As telas alternam entre os três.
 5. **A Treetech entrega e instala**: a Treetech disponibiliza os módulos, instala nos equipamentos e acompanha a operação.
 6. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
 7. **Forma 1: E3 (TCP/IP)**: a câmera acompanha uma pergunta até o módulo e a resposta de volta, com pausas no módulo e no servidor. No fim, mostra o painel do Sigma com os operadores por alguns segundos.
-8. **Forma 2: Sync (RabbitMQ)**: a câmera acompanha uma mensagem do módulo até a fila, onde ela espera, e depois até o Sigma, o banco e o painel, que fica em foco no fim.
+8. **Forma 2: Sync (RabbitMQ)**: a câmera acompanha uma mensagem do módulo até a fila, pela internet, onde ela espera, e depois até o Sigma, o banco e o painel, que fica em foco no fim.
 9. **O banco de dados**: PostgreSQL ou SQL Server.
 10. **Sigma ECM**: a exibição no painel e nos PCs dos escritórios.
 11. **Energia garantida para a cidade**: visão geral.

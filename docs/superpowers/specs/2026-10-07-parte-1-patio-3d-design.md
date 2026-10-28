@@ -443,10 +443,12 @@ Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 
 - **Painel no 3º andar:** o arco do banco até o painel (`arcSigma`) é recalculado quando os andares se afastam (`arc.rebuild`). Os dois passos abrem o prédio da Treetech.
 - **Fim de Tarde dentro do prédio:** luminárias emissivas no teto de cada andar (`ceilingMat`) e uma luz de ponto por andar (`duskInteriorLights`), acesas junto com as janelas.
 
+**Revisão 7: 4º andar.** O prédio da Treetech ganhou um 4º andar só para a sala de reuniões (a mesa, a TV e as 4 pessoas), com o telhado no topo. O 3º andar ficou com o painel do Sigma e um canto de descanso (sofá e plantas). O afastamento dos andares ao abrir o telhado vale para os 4.
+
 **Revisão 6: chão, reunião, ritmo e código dividido.**
 
 - **Chão único:** um quadrado de grama de 100 × 100 centrado em (33; 4,5) substitui as placas de grama separadas da subestação, da usina, da Treetech, da fábrica e da faixa de ligação.
-- **Reunião com o cliente (passo 3 do tour):** na sala do 3º andar, 2 pessoas sentadas conversam (uma da Treetech e uma do cliente) e 2 em pé, de frente, se cumprimentam. A TV da parede marca os três pedidos (módulos, Sigma ECM e instalação no Trafo 01) e termina em "Negócio fechado". O ciclo dura 30 s.
+- **Reunião com o cliente (passo 3 do tour):** na sala do 4º andar, 2 pessoas sentadas conversam (uma da Treetech e uma do cliente) e 2 em pé, de frente, se cumprimentam. A TV da parede marca os três pedidos (módulos, Sigma ECM e instalação no Trafo 01) e termina em "Negócio fechado". O ciclo dura 30 s.
 - **Ritmo do pacote:** o herói anda a 6 unidades por segundo (11 no trecho longo entre antenas e 3,5 do banco ao painel) e para no módulo (2,2 s), no servidor (2 s), na fila do RabbitMQ (4 s) e no painel (7 s). Nas pausas finais a câmera enquadra o painel com os operadores (`view` e `panelView`).
 - **Código dividido:** o `index.html` virou uma casca e o código está em [app/](../../../app/README.md), montado pelo plugin `htmlInclude` de `vite.config.mjs` (o arquivo era `vite.config.ts`).
 

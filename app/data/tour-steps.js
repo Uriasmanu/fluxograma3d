@@ -19,7 +19,7 @@
       {
         title: 'A reunião com o cliente',
         text: 'Tudo começa numa sala de reunião. O cliente conversa com a equipe da Treetech e pede três coisas: os módulos, o Sigma ECM (o site de monitoramento) e a instalação no transformador. Eles apertam as mãos e o negócio está fechado.',
-        camera: { position: [58, 16.5, 18], target: [56.8, 13.6, 6.5] },
+        camera: { position: [57.2, 23.1, 18], target: [55.9, 20.2, 6.5] },
         mode: 'sync',
         roofs: { plant: false, treetech: true, factory: false },
         labels: []
@@ -59,7 +59,7 @@
       },
       {
         title: 'Forma 2: Sync (RabbitMQ)',
-        text: 'No Sync, o módulo envia a atualização por conta própria. A câmera acompanha uma mensagem (laranja) até a fila do RabbitMQ, onde ela espera, e depois até o Sigma, o banco de dados e o painel.',
+        text: 'No Sync, o módulo envia a atualização por conta própria, pela internet. A câmera acompanha uma mensagem (laranja) até a fila do RabbitMQ, onde ela espera, e depois até o Sigma, o banco de dados e o painel.',
         camera: { position: [8, 6, 10], target: [2, 2, 2] },
         mode: 'sync',
         follow: 'sync',

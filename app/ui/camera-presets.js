@@ -34,8 +34,8 @@
             break;
           case 'treetech':
             treetechRoofApiRef.current.setOpen(true);
-            controls.object.position.set(74, 22, 32);
-            controls.target.set(54, 8, 8);
+            controls.object.position.set(78, 30, 38);
+            controls.target.set(54, 11, 8);
             break;
           case 'devs':
             treetechRoofApiRef.current.setOpen(true);

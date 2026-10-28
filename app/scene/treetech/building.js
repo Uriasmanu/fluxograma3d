@@ -107,7 +107,7 @@
           const EXPLODE_GAP = 3;
           const southFace = bz + bd / 2 + 0.02;
 
-          const floors = [0, 1, 2].map(level => {
+          const floors = [0, 1, 2, 3].map(level => {
             const group = new THREE.Group();
             group.position.y = level * FLOOR_PITCH;
             building.add(group);
@@ -138,16 +138,16 @@
             return { group, walls, furniture };
           });
 
-          // Telhado no topo do 3º andar
+          // Telhado no topo do 4º andar
           const roof = new THREE.Group();
           addMesh(roof, box(bw + 0.4, 0.25, bd + 0.4), mat('#6b7d73'), 0, 0.1 + wallH + 0.125, bz);
           addMesh(roof, box(1.2, 0.5, 0.9), mat('#9aa3a0'), -3, 0.1 + wallH + 0.5, bz + 0.5);
-          floors[2].group.add(roof);
+          floors[3].group.add(roof);
 
           // Iluminação interna: luminárias no teto de cada andar e uma luz de ponto por andar, acesas no Fim de Tarde
           const ceilingMat = new THREE.MeshStandardMaterial({ color: '#f4f1e6', emissive: '#fff0c8', emissiveIntensity: 0 });
           duskLightMats.push({ mat: ceilingMat, day: 0, dusk: 1.6 });
-          [[floors[1].group, -0.23], [floors[2].group, -0.23], [roof, 0.1 + wallH - 0.03]].forEach(([ceiling, y]) => {
+          [[floors[1].group, -0.23], [floors[2].group, -0.23], [floors[3].group, -0.23], [roof, 0.1 + wallH - 0.03]].forEach(([ceiling, y]) => {
             [-3, 0, 3].forEach(lx => [bz - 1.3, bz + 1.3].forEach(lz => {
               addMesh(ceiling, box(1.6, 0.05, 0.5), ceilingMat, lx, y, lz).castShadow = false;
             }));
@@ -199,12 +199,13 @@
           floors[2].furniture.position.x = 6;
           buildOfficeLife({ ground: furniture, dev: floors[1].furniture, sigma: floors[2].furniture });
 
-          // Sala de reunião no lado leste do 3º andar: o cliente pede os módulos, o Sigma e a instalação e fecha o negócio com um aperto de mão
+          // Sala de reunião no 4º andar: o cliente pede os módulos, o Sigma e a instalação e fecha o negócio com um aperto de mão
           const buildMeetingRoom = () => {
             const { createPerson, makeState, V, ss, win, canvasOf } = lifeKit;
             const room = new THREE.Group();
             room.position.y = 0.1;
-            floors[2].group.add(room);
+            room.position.x = -2.2;
+            floors[3].group.add(room);
 
             const table = { x: 2.2, z: bz - 0.4 };
             const woodMat = mat('#a8896a', 0.7);
@@ -351,6 +352,15 @@
           };
 
           buildMeetingRoom();
+
+          // Canto de descanso no lado leste do 3º andar: sofá e plantas
+          const lounge = floors[2].group;
+          addMesh(lounge, box(2.0, 0.4, 0.8), chairMat, 3.2, 0.3, bz + 0.9);
+          addMesh(lounge, box(2.0, 0.5, 0.15), chairMat, 3.2, 0.7, bz + 1.25);
+          [[4.4, bz - 0.6], [1.6, bz + 1.2]].forEach(([px, pz]) => {
+            addMesh(lounge, new THREE.CylinderGeometry(0.2, 0.16, 0.4, 10), mat('#c0504a', 0.6), px, 0.3, pz);
+            addMesh(lounge, new THREE.SphereGeometry(0.34, 8, 6), mat('#4f8f5b', 0.7), px, 0.8, pz);
+          });
 
           const dashCanvas = document.createElement('canvas');
           dashCanvas.width = treetechDashboard.width;

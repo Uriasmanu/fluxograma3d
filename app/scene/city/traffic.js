@@ -152,7 +152,8 @@
         };
 
         addLabel('factory', 'Fábrica de módulos', 54, 9.2, 33, 5.2);
-        addLabel('treetech', 'Treetech: RabbitMQ, Sigma e banco', 54, 13.6, 8, 6.6);        addLabel('substation', 'Subestação (módulos instalados)', 0, 9.5, 0, 6.4);
+        addLabel('treetech', 'Treetech: RabbitMQ, Sigma e banco', 54, 17.6, 8, 6.6);
+        addLabel('substation', 'Subestação (módulos instalados)', 0, 9.5, 0, 6.4);
         addLabel('vans', 'Vans levam os módulos', 28, 3.6, 19.5, 4.6);
         addLabel('plant', 'Usuários do Sigma (PCs)', 20.3, 9.5, -1.5, 5.2);
         addLabel('sigma', 'Sigma ECM', 52, 16.6, 5.8, 2.0);
