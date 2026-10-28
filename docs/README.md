@@ -13,6 +13,10 @@ docs/
     plans/                      # um plano de implementação por parte
 ```
 
+## Onde fica o código da cena
+
+A cena principal (`index.html`) é montada a partir dos arquivos de [app/](../app/README.md). A versão em R3F fica em `src/`.
+
 ## O que a cena representa
 
 A explicação do domínio (Treetech, módulos, E3, Sync/RabbitMQ, banco de dados e Sigma ECM) está em [dominio-treetech.md](dominio-treetech.md). Leia esse documento antes de mudar a cena 3D.

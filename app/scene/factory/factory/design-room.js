@@ -1,0 +1,41 @@
+          // Sala 3: mesas de projeto com PC, dois engenheiros sentados e um quadro branco
+          const labChairMat = mat('#4a5360');
+          [3.5, 5.8].forEach((dx, i) => {
+            addSlab(furniture, 1.6, 0.06, 0.8, benchMat, dx, 0.75, 8.7);
+            [-0.75, 0.75].forEach(lx => addSlab(furniture, 0.05, 0.72, 0.7, benchMat, dx + lx, 0.36, 8.7));
+            addSlab(furniture, 0.55, 0.36, 0.03, screenLab, dx, 1.03, 8.95, false);
+            addSlab(furniture, 0.06, 0.2, 0.06, darkLab, dx, 0.88, 8.95, false);
+            addSlab(furniture, 0.45, 0.02, 0.15, darkLab, dx, 0.79, 8.55, false);
+            addSlab(furniture, 0.5, 0.06, 0.5, labChairMat, dx, 0.45, 7.7);
+            addSlab(furniture, 0.5, 0.55, 0.06, labChairMat, dx, 0.75, 7.45);
+            const engineer = createWorker(['#7fa88c', '#6f9a82'][i]);
+            engineer.position.set(dx, -0.23, 7.7);
+            engineer.userData.leftLeg.rotation.x = -1.45;
+            engineer.userData.rightLeg.rotation.x = -1.45;
+            building.add(engineer);
+            plantSeated.push({ worker: engineer, phase: 11 + i * 2.1 });
+          });
+          const boardCanvas = document.createElement('canvas');
+          boardCanvas.width = 512;
+          boardCanvas.height = 256;
+          const bctx = boardCanvas.getContext('2d');
+          bctx.fillStyle = '#f4f7f5';
+          bctx.fillRect(0, 0, 512, 256);
+          bctx.strokeStyle = BRAND_GREEN;
+          bctx.lineWidth = 6;
+          [[30, 60], [200, 60], [370, 60]].forEach(([bx, by]) => bctx.strokeRect(bx, by, 110, 70));
+          bctx.beginPath();
+          bctx.moveTo(140, 95); bctx.lineTo(200, 95);
+          bctx.moveTo(310, 95); bctx.lineTo(370, 95);
+          bctx.stroke();
+          bctx.fillStyle = '#2b323a';
+          bctx.font = 'bold 30px Arial, sans-serif';
+          bctx.fillText('Novo módulo', 30, 190);
+          const board = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(boardCanvas) }));
+          board.position.set(4.65, 2.3, 9.23);
+          board.rotation.y = Math.PI;
+          walls.add(board);
+
+          factoryRoof.walls = walls;
+          factoryRoof.roof = roof;
+          factoryRoof.hit = building;

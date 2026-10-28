@@ -426,6 +426,30 @@ Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 
 - **Papel na cena:** a torre do servidor representa o servidor da Treetech, que roda o RabbitMQ, o Sigma ECM e o banco de dados (decisão do usuário). A fila e os bancos ficam do lado de fora, para aparecerem no tour.
 - **Ligação com o escritório da usina:** ver a seção 12.6.3.
 
+**Revisão 4: prédio de 3 andares.** O escritório deixou de ser térreo. Os três andares têm 10 × 6 e 3,4 de pé-direito, empilhados a cada 3,6, com telhado só no topo:
+
+- **Térreo**: recepção (balcão, sofá, plantas), a mesa e a torre do servidor RabbitMQ e o canto do café.
+- **1º andar**: os 4 desenvolvedores, 2 pessoas no café, o quadro kanban e uma **tela grande na parede norte** (2,2 × 1,4) que repete a configuração do módulo.
+- **3º andar**: o painel do Sigma ECM (4 × 2 telas), 2 operadores, café e uma sala de reunião. O antigo anexo oeste foi removido.
+- **Abrir o telhado** baixa as paredes a 30% e **afasta os andares** em 3 unidades cada, para o interior de todos aparecer (vista em corte). `treetechRoof.apply` faz isso a cada quadro.
+- **Telas dos devs** (`screenPainters.config`): alternam a cada 7 s entre Script (SQL digitado e validado), E3 (campos e teste pergunta e resposta) e Sync (broker, fila e JSON com valor vivo). Cada mesa começa em um ponto diferente do ciclo.
+- A torre do servidor continua no térreo, então os arcos, a fila e os cabos dos PCs da usina não mudaram.
+- O preset **Devs** e o passo 3 do tour enquadram o 1º andar; o preset **Painel** e o passo 9 enquadram o 3º. Todos abrem o telhado.
+
+**Revisão 5: acompanhar o pacote e prédio aceso.**
+
+- **Câmera que segue o pacote:** nos passos E3 e Sync do tour (`follow` em `TOUR_STEPS`) só trafega um pacote "herói" (maior, com brilho, a 13 unidades por segundo) e a câmera o segue por trás (`updateFollow`, 12 atrás e 4 acima, com suavização). O tráfego de fundo e a retirada automática da fila ficam parados. Entre um pacote e outro a câmera espera 2,4 s no ponto de partida do próximo (o servidor no E3, o módulo seguinte no Sync).
+- **Etapas:** `FLOW_STAGES` e `FLOW_CAPTIONS` alimentam a barra do topo. E3: Sigma pergunta, TCP/IP até o módulo, módulo responde, TCP/IP de volta, banco de dados, painel. Sync: módulo envia, TCP/IP até a Treetech, fila RabbitMQ (o herói espera 1,8 s no tubo), Sigma retira, banco de dados, painel.
+- **Painel no 3º andar:** o arco do banco até o painel (`arcSigma`) é recalculado quando os andares se afastam (`arc.rebuild`). Os dois passos abrem o prédio da Treetech.
+- **Fim de Tarde dentro do prédio:** luminárias emissivas no teto de cada andar (`ceilingMat`) e uma luz de ponto por andar (`duskInteriorLights`), acesas junto com as janelas.
+
+**Revisão 6: chão, reunião, ritmo e código dividido.**
+
+- **Chão único:** um quadrado de grama de 100 × 100 centrado em (33; 4,5) substitui as placas de grama separadas da subestação, da usina, da Treetech, da fábrica e da faixa de ligação.
+- **Reunião com o cliente (passo 3 do tour):** na sala do 3º andar, 2 pessoas sentadas conversam (uma da Treetech e uma do cliente) e 2 em pé, de frente, se cumprimentam. A TV da parede marca os três pedidos (módulos, Sigma ECM e instalação no Trafo 01) e termina em "Negócio fechado". O ciclo dura 30 s.
+- **Ritmo do pacote:** o herói anda a 6 unidades por segundo (11 no trecho longo entre antenas e 3,5 do banco ao painel) e para no módulo (2,2 s), no servidor (2 s), na fila do RabbitMQ (4 s) e no painel (7 s). Nas pausas finais a câmera enquadra o painel com os operadores (`view` e `panelView`).
+- **Código dividido:** o `index.html` virou uma casca e o código está em [app/](../../../app/README.md), montado pelo plugin `htmlInclude` de `vite.config.mjs` (o arquivo era `vite.config.ts`).
+
 ### 12.6.3 Comunicação simulada: módulos, E3, Sync, banco e Sigma ECM
 
 Esta é a parte que explica o domínio descrito em [dominio-treetech.md](../../dominio-treetech.md). Os dados são **simulados no navegador**; nada fala com um RabbitMQ real.
@@ -493,7 +517,7 @@ Caixas brancas com faixa verde e LED, com rótulos sempre visíveis:
 
 ### 12.6.8 Tour guiado
 
-O botão **Tour: como funciona** leva a câmera por oito passos, com um painel de texto (título e explicação, "Anterior" e "Próximo"). Cada passo posiciona a câmera, escolhe o modo de comunicação (E3 ou Sync), abre ou fecha os telhados e mostra os rótulos do passo.
+O botão **Tour: como funciona** leva a câmera por dez passos (o 3º, "Os desenvolvedores configuram o módulo", fica entre a fábrica e a entrega; a lista completa está em [dominio-treetech.md](../../dominio-treetech.md)), com um painel de texto (título e explicação, "Anterior" e "Próximo"). Cada passo posiciona a câmera, escolhe o modo de comunicação (E3 ou Sync), abre ou fecha os telhados e mostra os rótulos do passo.
 
 1. **A Treetech**: fabrica módulos e também criou o software que os monitora.
 2. **A fábrica de módulos**: o galpão com a esteira (telhado aberto).

@@ -57,10 +57,11 @@ Nos dois casos:    Sigma ──▶ Banco de dados (PostgreSQL ou SQL Server) ─
 | **Galpão com linha de produção** | A **fábrica de módulos** da Treetech: esteira com módulos, funcionários na montagem e um supervisor, com caixas de módulos na entrada |
 | **Três salas atrás da linha de produção** | O **desenvolvimento de protótipos**: eletrônica (bancada com protótipos), testes e ensaios (câmara térmica e osciloscópio) e projeto e P&D (mesas com PC e quadro branco) |
 | **Estrada com duas vans** | O transporte dos módulos da fábrica até o portão sul da subestação. Elas saem carregadas e voltam vazias |
-| **Escritório da Treetech, com a torre do servidor** | O servidor da Treetech, que roda o RabbitMQ, o Sigma e o banco de dados |
+| **Prédio da Treetech, de 3 andares** | **Térreo**: recepção e a torre do servidor, que roda o RabbitMQ, o Sigma e o banco de dados. **1º andar**: a equipe de desenvolvimento, que configura o módulo. **3º andar**: o painel do Sigma ECM e uma sala de reunião |
+| **Telas dos desenvolvedores (1º andar)** | Alternam a cada 7 s entre **Script** (mapeamento do módulo em SQL), **E3** (endereço, porta e intervalo de consulta, com teste de pergunta e resposta) e **Sync** (broker, fila e JSON publicado). Os valores são ilustrativos |
 | **Tubo de vidro com pilha de caixas laranja** | A **fila do RabbitMQ**; a altura da pilha é a profundidade da fila |
 | **Dois cilindros (PostgreSQL e SQL Server)** | O **banco de dados**. O que está em uso fica destacado em verde e alterna a cada 14 s para mostrar as duas opções |
-| **Painel de 4 × 2 telas na sala anexa** | O **Sigma ECM** exibindo as informações |
+| **Painel de 4 × 2 telas no 3º andar** | O **Sigma ECM** exibindo as informações |
 | **Antenas na subestação e na Treetech, com arcos de luz** | A **rede TCP/IP** entre os módulos e o servidor (desenho esquemático, não o meio físico real) |
 | **Usina, com o escritório e os PCs** | A empresa de energia, cliente da Treetech? Os PCs do escritório são **usuários do Sigma ECM**? Eles têm cabos até o servidor da Treetech |
 | **Cidade, torres de transmissão e postes de luz** | Os consumidores e a rede que a subestação alimenta |
@@ -86,18 +87,21 @@ Nos dois casos:    Sigma ──▶ Banco de dados (PostgreSQL ou SQL Server) ─
 
 ## 5. Como usar o tour
 
-O botão **Tour: como funciona**, no canto esquerdo, leva a câmera por oito passos, com um texto curto em cada um:
+O botão **Tour: como funciona**, no canto esquerdo, leva a câmera por onze passos, com um texto curto em cada um:
 
 1. **A Treetech**: fabrica módulos e também fez o software que os monitora.
 2. **A fábrica de módulos**: o galpão com a linha de produção.
-3. **A Treetech entrega e instala**: a Treetech disponibiliza os módulos, instala nos equipamentos e acompanha a operação.
-4. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
-5. **Forma 1: E3 (TCP/IP)**: o Sigma pergunta, o módulo responde.
-6. **Forma 2: Sync (RabbitMQ)**: o módulo envia, a fila guarda, o Sigma retira.
-7. **O banco de dados**: PostgreSQL ou SQL Server.
-8. **Sigma ECM**: a exibição no painel e nos PCs dos escritórios.
+3. **A reunião com o cliente**: numa sala do prédio, o cliente pede os módulos, o Sigma ECM (o site) e a instalação no transformador. Eles apertam as mãos e o negócio é fechado.
+4. **Os desenvolvedores configuram o módulo**: a equipe escreve o script de mapeamento e define o E3 e o Sync. As telas alternam entre os três.
+5. **A Treetech entrega e instala**: a Treetech disponibiliza os módulos, instala nos equipamentos e acompanha a operação.
+6. **Os módulos instalados**: TM, BM, GMP e DM nos equipamentos.
+7. **Forma 1: E3 (TCP/IP)**: a câmera acompanha uma pergunta até o módulo e a resposta de volta, com pausas no módulo e no servidor. No fim, mostra o painel do Sigma com os operadores por alguns segundos.
+8. **Forma 2: Sync (RabbitMQ)**: a câmera acompanha uma mensagem do módulo até a fila, onde ela espera, e depois até o Sigma, o banco e o painel, que fica em foco no fim.
+9. **O banco de dados**: PostgreSQL ou SQL Server.
+10. **Sigma ECM**: a exibição no painel e nos PCs dos escritórios.
+11. **Energia garantida para a cidade**: visão geral.
 
-Os passos 5 e 6 trocam o modo de comunicação da cena. Fora do tour, a cena fica no modo Sync.
+Os passos 7 e 8 trocam o modo de comunicação da cena. Fora do tour, a cena fica no modo Sync.
 
 ## 6. Glossário
 
