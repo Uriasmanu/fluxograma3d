@@ -19,6 +19,8 @@
       const [flow, setFlow] = useState(null);
       const flowUiRef = useRef(null);
       flowUiRef.current = setFlow;
+      const [tourPlaying, setTourPlaying] = useState(false);
+      const heroDoneRef = useRef(null);
 
       const sceneRef = useRef(null);
       const controlsRef = useRef(null);

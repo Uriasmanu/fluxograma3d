@@ -18,6 +18,7 @@
       },
       {
         title: 'A reunião com o cliente',
+        duration: 32000,
         text: 'Tudo começa numa sala de reunião. O cliente conversa com a equipe da Treetech e pede três coisas: os módulos, o Sigma ECM (o site de monitoramento) e a instalação no transformador. Eles apertam as mãos e o negócio está fechado.',
         camera: { position: [57.2, 23.1, 18], target: [55.9, 20.2, 6.5] },
         mode: 'sync',
@@ -26,6 +27,7 @@
       },
       {
         title: 'Os desenvolvedores configuram o módulo',
+        duration: 22000,
         text: 'Antes de sair da Treetech, a equipe de desenvolvimento configura o módulo: escreve o script de mapeamento (SQL), define o E3, em que o Sigma consulta o módulo por TCP/IP, e o Sync, em que o módulo publica no RabbitMQ. As telas alternam entre os três.',
         camera: { position: [54.6, 13.2, 21], target: [54.6, 7.8, 6.2] },
         mode: 'sync',

@@ -3,8 +3,8 @@
 
             {/* PAINEL ESQUERDO: SELEÇÃO DE VISTAS E MODOS */}
             <div className="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-xl p-3 flex flex-col gap-3 w-48 shadow-xl">
-              <button onClick={() => goToTourStep(0)} className="px-2 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-xs font-bold text-white">
-                Tour: como funciona
+              <button onClick={toggleTour} className={`px-2 py-2 rounded text-xs font-bold text-white ${tourStep !== null ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
+                {tourStep !== null ? '■ Parar tour' : 'Tour: como funciona'}
               </button>
               <div className="text-xs font-bold text-slate-400 tracking-wider uppercase border-b border-slate-800 pb-1.5 flex items-center gap-1.5">
                 <Icons.Camera /> Câmera Presets

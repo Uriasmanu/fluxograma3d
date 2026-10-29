@@ -243,6 +243,7 @@
           follow.hero = null;
           follow.nextHero = time + 2.4;
           prepareNextHero();
+          if (heroDoneRef.current) heroDoneRef.current();
         };
 
         const updateFollow = (dt) => {

@@ -3,7 +3,7 @@
             <div className="pointer-events-auto fixed left-1/2 -translate-x-1/2 bottom-24 w-[34rem] max-w-[92vw] bg-slate-900/95 backdrop-blur-md border border-emerald-500/50 rounded-xl p-4 shadow-2xl">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                  Tour: como funciona · passo {tourStep + 1} de {TOUR_STEPS.length}
+                  Tour: como funciona · passo {tourStep + 1} de {TOUR_STEPS.length}{tourPlaying ? ' · em loop' : ''}
                 </span>
                 <button onClick={endTour} className="text-slate-400 hover:text-white text-sm font-bold">✕</button>
               </div>
@@ -23,9 +23,9 @@
                   >
                     Anterior
                   </button>
-                  {tourStep < TOUR_STEPS.length - 1 ? (
+                  {tourStep < TOUR_STEPS.length - 1 || tourPlaying ? (
                     <button
-                      onClick={() => goToTourStep(tourStep + 1)}
+                      onClick={() => goToTourStep((tourStep + 1) % TOUR_STEPS.length)}
                       className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white"
                     >
                       Próximo

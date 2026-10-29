@@ -101,6 +101,8 @@ O botão **Tour: como funciona**, no canto esquerdo, leva a câmera por onze pas
 10. **Sigma ECM**: a exibição no painel e nos PCs dos escritórios.
 11. **Energia garantida para a cidade**: visão geral.
 
+O botão do tour liga e desliga um **modo em loop**: os passos avançam sozinhos (nos passos 7 e 8, quando o pacote acompanhado termina) e, depois do último, o tour volta ao primeiro, até o botão "■ Parar tour" ser clicado. Os botões Anterior e Próximo continuam funcionando.
+
 Os passos 7 e 8 trocam o modo de comunicação da cena. Fora do tour, a cena fica no modo Sync.
 
 ## 6. Glossário

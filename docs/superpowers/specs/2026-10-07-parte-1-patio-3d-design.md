@@ -443,6 +443,8 @@ Uma segunda empresa, **perto da cidade**, logo ao sul dela: centro em (54; 0,3; 
 - **Painel no 3º andar:** o arco do banco até o painel (`arcSigma`) é recalculado quando os andares se afastam (`arc.rebuild`). Os dois passos abrem o prédio da Treetech.
 - **Fim de Tarde dentro do prédio:** luminárias emissivas no teto de cada andar (`ceilingMat`) e uma luz de ponto por andar (`duskInteriorLights`), acesas junto com as janelas.
 
+**Revisão 8: tour em loop.** Clicar em "Tour: como funciona" inicia o tour no modo automático (`tourPlaying`) e o botão vira "■ Parar tour". Cada passo dura `duration` ms (ou 55 ms por caractere do texto, no mínimo 8 s); nos passos com `follow` o avanço acontece quando o pacote herói termina (`heroDoneRef`, com limite de 180 s). Depois do último passo volta ao primeiro. Está em `app/ui/tour-controls.js`.
+
 **Revisão 7: 4º andar.** O prédio da Treetech ganhou um 4º andar só para a sala de reuniões (a mesa, a TV e as 4 pessoas), com o telhado no topo. O 3º andar ficou com o painel do Sigma e um canto de descanso (sofá e plantas). O afastamento dos andares ao abrir o telhado vale para os 4.
 
 **Revisão 6: chão, reunião, ritmo e código dividido.**
